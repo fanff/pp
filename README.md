@@ -2,8 +2,24 @@
 ## PP Network
 
 
+#### Development mode: 
 
-#### development mode: 
+You might want to make sure the root of your project is considered inside PYTHONPATH. 
+
+In laucnch.json of vscode:
+```json
+"env": {
+    "PYTHONPATH": "${workspaceFolder}"
+}
+```
+
+Or, at the powershell command line 
+
+`$env:PYTHONPATH += ";$PWD" `
+
+Or, if prefered a volume mount in the compose.yml can make the job as well. 
+
+#### testing images with docker : 
 
 Use the compose.yml file at will. 
 
@@ -32,6 +48,10 @@ TUI accessible throu ssh.
 
 Front end as a godot packaged application:
 `docker build -f Dockerfile_god -t pp_frnt .`
+
+
+
+
 
 ### todo list 
 

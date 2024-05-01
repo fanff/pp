@@ -1,0 +1,13 @@
+FROM python:3.12
+
+# Install the required packages
+ADD pp_backend_reqs.txt /app/requirements.txt
+RUN pip install -r /app/requirements.txt
+
+# Copy the source code
+ADD ppback /app/ppback
+
+# add the pp_spt directory to the PYTHONPATH
+ENV PYTHONPATH /app
+
+EXPOSE 8000

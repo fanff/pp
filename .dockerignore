@@ -1,0 +1,7 @@
+# .dockerignore
+node_modules
+.venv
+.git
+.ipynb_checkpoints
+simple_nc
+crew_ai_test

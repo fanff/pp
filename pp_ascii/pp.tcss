@@ -1,0 +1,107 @@
+
+/*// 
+
+ascii', 'blank', 'dashed', 'double', 'heavy', 'hidden', 
+'hkey', 'inner', 'none', 'outer', 'panel', 'round',
+ 'solid', 'tall', 'thick', 'vkey', or 'wide'  
+*/
+
+$accent: #AA77AA;
+$primary: #B547B8;
+$secondary: #B8B547;
+$ternary: #47B8B5;
+$background: #111111;
+
+$neutral: #FFFFFF;
+
+$border_line: $neutral 20% ;
+
+SimpleApp{
+    /* max-height: 100vh;*/
+    /* max-width: 100vw;*/
+    layout: horizontal;
+}
+
+ContactPanel {
+  width: 1fr;
+  min-width: 20;
+  border-top: round $border_line;
+}
+
+DiscussionsWidgets{
+  width: 5fr;
+  border-left: round $border_line;
+  layout: vertical;
+
+}
+
+
+
+DiscussionWidget{
+    layout: vertical;
+}
+
+
+.convo_switcher {
+    height: 1fr;
+}
+
+.convo {
+    content-align: center bottom;
+    
+}
+
+
+MessageInputBox {
+  border: round $border_line;
+  align: left bottom;
+  content-align: center bottom;
+  layout: horizontal;
+  max-height: 25vh;
+}
+
+.messageinputarea {
+  align: left bottom;
+  border: none $accent;
+}
+
+.sendmessagebutton {
+  align: right bottom;
+  margin: 0 0 0 0;
+  padding: 0 0 0 0;
+  height: 100%;
+  tint: $primary 10%
+}
+
+BorderTitledMsg {
+  width: 100%;
+  content-align-vertical: top;
+  
+  border: blank white;
+  border-title-align: left;
+  border-subtitle-align: right;
+
+}
+
+.message_text_area {
+  border: none;
+  height: auto;
+  max-height: 30vh;
+}
+
+
+.usermsg {
+  border-left: round $primary;
+  border-title-background: $primary 30%;
+  
+}
+
+.othermsg {
+  border-left: round $secondary;
+  border-title-background: $secondary;
+}
+
+.selected_msg {
+  border: round $accent;
+  padding: 1;
+}

@@ -1,0 +1,12 @@
+
+websockets
+python-multipart
+fastapi
+uvicorn
+pyjwt
+
+sqlalchemy
+
+psycopg2-binary
+
+py-bcrypt
