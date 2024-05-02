@@ -13,6 +13,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session, joinedload
 
 from ppback.db.db_connect import get_session
+from ppback.db.dbfuncs import membersof
 from ppback.db.ppdb_schemas import (
     Conv,
     Convchanges,
@@ -265,7 +266,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         session = await anext(get_db())
         user = decode_token(token, session)  # this raise exception if failed
 
-        logger.warning("got user %s ", user)
+        logger.warning("got user %s ", user.name)
         if not inmemsockets.can_add_user(user.id):
             await websocket.close()
 
@@ -297,7 +298,11 @@ async def broadcast_message_to_users(
         m = MessageWS(convo_id=convo_id, content=message, originator=from_user.id)
         coros.append(websocket.send_text(m.model_dump_json()))
 
-    all_res = await asyncio.gather(*coros)
+    async def t(coros):
+        await asyncio.gather(*coros)
+    asyncio.create_task(t(coros))
+    #all_res = await asyncio.gather(*coros)
+
 
 
 @app.post("/usermsg", response_model=MsgOutputSchema)
@@ -335,14 +340,11 @@ async def new_msg(
         session.add(cc)
         session.commit()
 
-        members = (
-            session.query(ConvPrivacyMembers)
-            .filter((ConvPrivacyMembers.conv_id == msg.conversation_id))
-            .all()
-        )
+        members = membersof(session,convo.id)
         usersto_send = [u.user_id for u in members]
 
         await broadcast_message_to_users(user, convo.id, usersto_send, new_content)
-        return {"status": "ok"}
+        return {"status": "ok", "messageid":cm.id}
 
     raise HTTPException(400, detail="error posting message")
+

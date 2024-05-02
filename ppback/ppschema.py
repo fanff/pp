@@ -26,8 +26,8 @@ class MessageSchema(BaseModel):
             "example": {
                 "id": 1,
                 "content": "Hello, this is a test message.",
-                "sender": 42,
-                "ts": "2023-05-01T12:34:56",
+                "sender": 1,
+                "ts": 129887837.3443,
             }
         }
 

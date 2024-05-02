@@ -15,4 +15,4 @@ def create_session(dbstr):
 
 
 def get_session(dbstr):
-    return sessionmaker(autocommit=False, autoflush=False, bind=create_engine(dbstr))
+    return sessionmaker(autoflush=True, bind=create_engine(dbstr))

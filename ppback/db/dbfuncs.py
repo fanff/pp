@@ -1,6 +1,6 @@
 from typing import List, Tuple
 
-from secu.sec_utils import get_hashed_password
+from ..secu.sec_utils import get_hashed_password
 
 from ppback.db.ppdb_schemas import Conv, ConvPrivacyMembers, UserInfo
 
@@ -30,3 +30,15 @@ def create_convo(session, name: str, users: List[UserInfo]):
         cpm = ConvPrivacyMembers(conv_id=c1.id, user_id=u.id, role="member")
         session.add(cpm)
     session.commit()
+
+
+
+    
+def membersof(session,convo_id:int)->List[ConvPrivacyMembers]:
+    """
+    Get the members of a conversation
+    """
+    return (session.query(ConvPrivacyMembers)
+            .filter((ConvPrivacyMembers.conv_id == convo_id))
+            .all())
+
