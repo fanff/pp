@@ -2,26 +2,31 @@
 
 textual
 textual-dev
-langchain-experimental
 mistletoe 
-networkx 
-langchain-openai
+
 opentelemetry-api
 opentelemetry-sdk 
 opentelemetry-instrumentation-fastapi 
 opentelemetry-exporter-otlp-proto-http 
 grandalf
+websockets
 
-langgraph
 
-datasets
-openpyxl
-scikit-learn
-SQLAlchemy
-langchain
+python-multipart
+fastapi
+uvicorn
+pyjwt
+py-bcrypt
+sqlalchemy
 pydantic
-PyYAML
-openai
-tiktoken
+psycopg2-binary
+
+
+SQLAlchemy
+
 pandas
 numpy
+
+
+isort
+pylint 

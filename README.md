@@ -96,16 +96,16 @@ TUI accessible throu ssh.
 Backend TODO list : 
 
 
-* [X] make datetime working 
-* [X] make message grouping together 
-* [X] fix the line edit to be multi line
 * [ ] make bot joining conversation 
 * [ ] Set a fixed color for each user 
 * [ ] sort out why dynamodb not working at initdb https://docs.sqlalchemy.org/en/13/* dialects/
-
+* [ ] move to poetry dependency mngment
 
 Frontend TODO list :
 
+* [X] make datetime working 
+* [X] make message grouping together 
+* [X] fix the line edit to be multi line
 * [ ] make admin api for managing users ? 
 * [X] update the logo splash screen 
 * [ ] make some more sprite sheets for 16x16 
