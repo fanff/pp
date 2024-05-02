@@ -16,7 +16,7 @@ services:
   sshsrv:
     build:
       context: .
-      dockerfile: ./Dockerfile
+      dockerfile: ./pp_ascii_docker/Dockerfile
     ports:
       - 2222:2222
     expose:

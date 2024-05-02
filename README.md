@@ -2,6 +2,16 @@
 ## PP Network
 
 
+The PP Network is a straightforward backend conversational infrastructure designed to support real-time messaging capabilities. 
+
+It features 
+* user authentication with login and password, 
+* multiple conversation threads
+* The API is intentionally simple, facilitating easy interactions for sending and receiving messages. 
+* WebSockets for real-time communication, enabling continuous, bidirectional exchanges between clients and the server.
+* A simple TUI client for testing the backend.
+
+
 #### Development mode: 
 
 You might want to make sure the root of your project is considered inside PYTHONPATH. 
@@ -31,9 +41,11 @@ docker compose build
 # start up
 docker compose up -d 
 
+# to init the database there is a init_db.py script that can be run once.
+docker compose exec backend python /app/ppback/init_db.py
+
 # grab logs 
 docker compose logs -f 
-
 ```
 
 

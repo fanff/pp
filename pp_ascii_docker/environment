@@ -1,0 +1,3 @@
+PYTHONPATH="/app"
+PPN_HOST="http://backend:8000/"
+PPN_WSHOST="ws://backend:8000/"

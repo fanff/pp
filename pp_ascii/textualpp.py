@@ -25,14 +25,9 @@ from time import time
 from textual.reactive import reactive
 
 
-try:
-    from ppback.ppschema import MessageWS
-    from ppback.thedummyclient import PPC
-except:
-    # tricks when running in ssh server 
-    os.environ["PYTHONPATH"] = "/app"
-    from ppback.ppschema import MessageWS
-    from ppback.thedummyclient import PPC
+from ppback.ppschema import MessageWS
+from ppback.thedummyclient import PPC
+
 
 
 class MessageInputBox(Static):
@@ -553,7 +548,12 @@ class SimpleApp(App):
         yield Horizontal(UserPassPanel())#,DiscussionWidget())
     
     def on_mount(self):
-        self.ppc = PPC()
+        
+        
+        self.ppc = PPC(os.getenv("PPN_HOST","http://localhost:8000/"),
+                       
+                       os.getenv("PPN_WSHOST","ws://localhost:8000/")
+                       )
     
     def on_contact_panel_selected(self, selected: ContactPanel.Selected) -> None:
         selected.convo_id
