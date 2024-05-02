@@ -10,17 +10,15 @@ import fastapi
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import joinedload
 
-import bcrypt
 import jwt
-
-from pydantic import BaseModel
 
 from ppback.db.db_connect import get_session
 from ppback.db.ppdb_schemas import Conv, ConvPrivacyMembers, Convchanges, ConvoMessage, UserInfo
 from sqlalchemy.orm import Session
-from ppback.ppschema import MessageWS
-from ppback.secu.sec_utils import check_password, get_hashed_password
+from ppback.ppschema import MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
+from ppback.secu.sec_utils import check_password
 
 
 class InMemSockets():
@@ -141,27 +139,34 @@ async def list_conv(current_user: Annotated[UserInfo, Depends(get_current_user)]
     allu = session.query(UserInfo).all()
     return [{"id":u.id,"name":u.name,"nickname":u.nickname} for u in allu]
 
-@app.get("/conv/{conversation_id}")
-async def getconv(conversation_id,
-            user: Annotated[UserInfo, Depends(get_current_user)],
-            session: Session = Depends(get_db)):
 
+@app.get("/conv/{conversation_id}")
+async def getconv(conversation_id:int,
+            user: Annotated[UserInfo, Depends(get_current_user)],
+            session: Session = Depends(get_db),
+            limit:int=1000,) -> List[MessageSchema]:
+    """
+    Retreive all last messages of a single conversation. Sorted by timestamp
+    
+    """
     privacycheck = session.query(ConvPrivacyMembers).filter((
         ConvPrivacyMembers.user_id==user.id) & (
         ConvPrivacyMembers.conv_id==conversation_id)).count()
-    
+
     if privacycheck==1:
-        allchanges= session.query(Convchanges).filter(
-            (Convchanges.conv_id==conversation_id) & (Convchanges.change_type=="message")).all()
-        allmchanges = [c.change_id for c in allchanges]
-
-        timestamps = {c.change_id:c.ts for c in allchanges}
-        allm = session.query(ConvoMessage).filter(ConvoMessage.id.in_(allmchanges)).all()
-
+        results = session.query(Convchanges).join(
+            ConvoMessage, 
+            Convchanges.change_id == ConvoMessage.id
+        ).filter(
+            (Convchanges.conv_id == conversation_id) & (Convchanges.change_type == "message")
+        ).options(joinedload(Convchanges.convo_message)
+        
+        ).order_by(Convchanges.ts.desc()).limit(limit).all()
         all_results = []
-        for m in allm:
-            ts = timestamps[m.id]
-            all_results.append({"id":m.id,"content":m.content,"sender":m.sender_id,"ts":ts})
+        for result in reversed(results):
+            ms = MessageSchema(id=result.id, content=result.convo_message.content, sender=result.convo_message.sender_id,ts=result.ts)
+            all_results.append(ms.model_dump())
+
         return all_results
     else:
         raise HTTPException(status_code=500, detail="error fetching conversation.")
@@ -217,11 +222,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         if not inmemsockets.can_add_user(user.id):
             await websocket.close()
 
-
-        
         idx = inmemsockets.add_user(user.id,websocket)
-        #["Content-Type: application/json",
-        #"Authorization: Bearer "+self.token]
+        
         keep_user_connected=True
         while keep_user_connected:
             try:
@@ -249,14 +251,17 @@ async def broadcast_message_to_users(from_user:UserInfo,convo_id,user_ids:List[i
 
     all_res = await asyncio.gather(*coros)
 
-class DummyMsg(BaseModel):
-    content: str
-    conversation_id: int
-    
-@app.post("/usermsg")
-async def new_msg(msg:DummyMsg,
+
+@app.post("/usermsg", response_model=MsgOutputSchema)
+async def new_msg(msg:MsgInputSchema,
                user: Annotated[UserInfo, Depends(get_current_user)],
                session: Session = Depends(get_db)):
+    """
+    Endpoint to post a new message to a conversation. This will store it & propagate it to every connected users
+
+    Raises:
+        HTTPException: If there is an issue with storing the message.
+    """
     new_content = msg.content
 
     privacycheck = session.query(ConvPrivacyMembers).filter((

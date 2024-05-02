@@ -9,11 +9,11 @@ from typing import Optional, List
 Base = declarative_base()
 
 class ConvoMessage(Base):
-    __tablename__ = 'convo_messages'
+    __tablename__ = 'convomessage'
     id:int = Column(Integer, primary_key=True, index=True)
     content:str = Column(String, )
     sender_id:int = Column(Integer, ForeignKey('userinfo.id'))
-
+    convchanges = relationship("Convchanges", back_populates="convo_message")
 
 # for later use.
 class AgentPatch(Base):
@@ -69,4 +69,5 @@ class Convchanges(Base):
     ts:float = Column(Float) # time stamps seconds
     conv_id:int = Column(Integer, ForeignKey('conversations.id'))
     change_type:str = Column(String, )
-    change_id:int = Column(Integer, )
+    change_id = Column(Integer, ForeignKey('convomessage.id'))
+    convo_message = relationship("ConvoMessage", back_populates="convchanges", uselist=False)

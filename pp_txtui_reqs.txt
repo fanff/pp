@@ -2,3 +2,4 @@
 textual
 websockets
 httpx
+pydantic

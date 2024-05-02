@@ -62,7 +62,7 @@ Front end as a godot packaged application:
 [ ] fix the buttons do something about it 
 [ ] fix the Send button
 [ ] Set a fixed color for each user 
-
+[ ] sort out why dynamodb not working https://docs.sqlalchemy.org/en/13/dialects/
 
 [ ] make admin api for managing users ? 
 [X] update the logo splash screen 

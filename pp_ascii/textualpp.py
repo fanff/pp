@@ -3,6 +3,7 @@
 
 import datetime
 import json
+import os
 from types import NoneType
 from typing import List
 import uuid
@@ -23,9 +24,15 @@ from textual.containers import Horizontal, ScrollableContainer, Vertical
 from time import time
 from textual.reactive import reactive
 
-from ppback.ppschema import MessageWS
-from ppback.thedummyclient import PPC
-#from pp_spt.graphroller import manage_agent, manage_agent_demo
+
+try:
+    from ppback.ppschema import MessageWS
+    from ppback.thedummyclient import PPC
+except:
+    # tricks when running in ssh server 
+    os.environ["PYTHONPATH"] = "/app"
+    from ppback.ppschema import MessageWS
+    from ppback.thedummyclient import PPC
 
 
 class MessageInputBox(Static):

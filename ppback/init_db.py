@@ -10,7 +10,7 @@ from ppback.db.db_connect import create_session
 from secu.sec_utils import get_hashed_password
 
 
-def create_starting_point_db(session,chat_stream_names):
+def create_starting_point_db(session):
 
     users = [["fanf","fanf"],["ted","ted"]]
     users = add_users(session,users)
@@ -25,6 +25,7 @@ def create_starting_point_db(session,chat_stream_names):
     create_convo(session,"Te\nst Space",users) 
     
 
+
 session,engine = create_session(os.getenv("DB_SESSION_STR","sqlite:///devdb/chat_database.db"))
 Base.metadata.create_all(engine)
-create_starting_point_db(session,chat_stream_names=["live_chat","second_chat","yet_another_chat"])
+create_starting_point_db(session)
