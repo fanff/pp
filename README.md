@@ -4,15 +4,40 @@
 
 The PP Network is a straightforward backend conversational infrastructure designed to support real-time messaging capabilities. 
 
-It features 
+It features:
+
 * user authentication with login and password, 
 * multiple conversation threads
 * The API is intentionally simple, facilitating easy interactions for sending and receiving messages. 
-* WebSockets for real-time communication, enabling continuous, bidirectional exchanges between clients and the server.
-* A simple TUI client for testing the backend.
+* **WebSockets** for real-time communication, enabling continuous, bidirectional exchanges between clients and the server.
+* A simple TUI client for testing the backend; made with [Textual](https://textual.textualize.io/)
+* A UI client made with [godot engine](https://godotengine.org/)
 
+## Development mode: 
 
-#### Development mode: 
+Just install the requirements.txt in your virtual environment and run the backend with the following command: 
+
+```bash
+
+uvicorn ppback.main:app --reload
+
+```
+
+Database initialization is done with the following command: 
+
+```bash
+python ppback/init_db.py
+```
+Default user passowrd are "fanf:fanf" and "ted:ted". (Me and my teddy bear )
+
+The TUI client can be run with the following command: 
+
+```bash
+export PPN_HOST="http://backend:8000/"
+export PPN_WSHOST="ws://backend:8000/"
+python pp_ascii/textualpp.py
+```
+
 
 You might want to make sure the root of your project is considered inside PYTHONPATH. 
 
@@ -27,11 +52,12 @@ Or, at the powershell command line
 
 `$env:PYTHONPATH += ";$PWD" `
 
-Or, if prefered a volume mount in the compose.yml can make the job as well. 
+Or, if prefered a volume mount in the compose.yml can make the job as well if you prefer not having the venv in your project but inside the docker.
 
-#### testing images with docker : 
 
-Use the compose.yml file at will. 
+## Testing the docker composed application
+
+Use the compose.yml file at will to start the whole application.
 
 ```bash 
 
@@ -48,8 +74,15 @@ docker compose exec backend python /app/ppback/init_db.py
 docker compose logs -f 
 ```
 
+Since the TUI client is not yet dockerized, you can run it locally with the following command: 
+
+```bash
+ssh -p 2222 user@localhost
+```
 
 ### Docker images building :
+
+
 
 Backend API:
 `docker build -f Dockerfileback -t pp_back .`
@@ -58,24 +91,21 @@ TUI accessible throu ssh.
 `docker build -f Dockerfile -t pp_ascii_cli .`
 
 
-Front end as a godot packaged application:
-`docker build -f Dockerfile_god -t pp_frnt .`
-
-
-
-
-
 ### todo list 
 
-[X] make datetime working 
-[X] make message grouping together 
-[X] fix the line edit to be multi line
-[ ] make bot joining conversation 
-[ ] fix the buttons do something about it 
-[ ] fix the Send button
-[ ] Set a fixed color for each user 
-[ ] sort out why dynamodb not working https://docs.sqlalchemy.org/en/13/dialects/
+Backend TODO list : 
 
-[ ] make admin api for managing users ? 
-[X] update the logo splash screen 
-[ ] make some more sprite sheets for 16x16 
+
+* [X] make datetime working 
+* [X] make message grouping together 
+* [X] fix the line edit to be multi line
+* [ ] make bot joining conversation 
+* [ ] Set a fixed color for each user 
+* [ ] sort out why dynamodb not working at initdb https://docs.sqlalchemy.org/en/13/* dialects/
+
+
+Frontend TODO list :
+
+* [ ] make admin api for managing users ? 
+* [X] update the logo splash screen 
+* [ ] make some more sprite sheets for 16x16 

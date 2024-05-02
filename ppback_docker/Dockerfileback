@@ -1,7 +1,7 @@
 FROM python:3.12
 
 # Install the required packages
-ADD pp_backend_reqs.txt /app/requirements.txt
+ADD ppback_docker/pp_backend_reqs.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 # Copy the source code
