@@ -9,15 +9,12 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
-
-
-
 # create a sumple user with simpel password 
 RUN useradd -m -s /app/pp_ascii/textualpp.py user
 RUN passwd -d user
 
 # Install the required packages
-ADD pp_txtui_reqs.txt /app/requirements.txt
+ADD pp_ascii/pp_txtui_reqs.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 # Copy the source code
