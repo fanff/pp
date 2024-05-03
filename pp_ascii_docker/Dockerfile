@@ -14,7 +14,7 @@ RUN useradd -m -s /app/pp_ascii/textualpp.py user
 RUN passwd -d user
 
 # Install the required packages
-ADD pp_ascii/pp_txtui_reqs.txt /app/requirements.txt
+ADD pp_ascii_docker/pp_txtui_reqs.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 # Copy the source code
@@ -23,7 +23,7 @@ ADD pp_ascii /app/pp_ascii
 # we need the schemas from the backend and the api client.
 RUN mkdir /app/ppback/
 ADD ppback/ppschema.py /app/ppback/
-ADD ppback/__init__.py /app/ppback/
+RUN touch /app/ppback/__init__.py
 ADD ppback/thedummyclient.py /app/ppback/
 
 # change execution for the main file
@@ -33,12 +33,16 @@ RUN chmod +x /app/pp_ascii/textualpp.py
 ADD pp_ascii_docker/sshd_config /etc/ssh/sshd_config
 RUN mkdir /var/run/sshd
 
-ADD pp_ascii_docker/environment /etc/environment
-
+# windows user gonna inject environement in the windows format :(
+#ADD pp_ascii_docker/environment /etc/environment
+RUN echo "PYTHONPATH=\"/app\"" > /etc/environment
 # add the app directory to the PYTHONPATH
 ENV PYTHONPATH /app
 
-# entrypoint is ssh server 
-CMD ["/usr/sbin/sshd", "-D"]
+
+# take the var env and put it the /etc/environment. So that you can configurate the file from var env
+ENTRYPOINT echo "PPN_HOST=$PPN_HOST\nPPN_WSHOST=$PPN_WSHOST" >> /etc/environment && /usr/sbin/sshd -D
+# CMD is ssh server 
+# CMD ["/usr/sbin/sshd", "-D"]
 
 EXPOSE 2222

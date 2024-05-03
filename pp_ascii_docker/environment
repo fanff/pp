@@ -1,3 +1,5 @@
+
+# un used file; should be what is present  inside the /etc/environment of the container
 PYTHONPATH="/app"
 PPN_HOST="http://backend:8000/"
 PPN_WSHOST="ws://backend:8000/"

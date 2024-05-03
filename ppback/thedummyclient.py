@@ -88,7 +88,7 @@ class PPC:
             await awaitable_loop(websocket)
             # await self.ws_loop(websocket)
 
-    async def ws_client_connection(self, awaitable_loop,*args,**kwargs):
+    async def ws_client_connection(self, awaitable_loop, *args, **kwargs):
         uri = self.wshost + "ws"
         thetoken = self.token["access_token"]
         async with websockets.connect(uri) as websocket:
@@ -97,7 +97,7 @@ class PPC:
                     "utf-8"
                 )
             )
-            await awaitable_loop(websocket,*args,**kwargs)
+            await awaitable_loop(websocket, *args, **kwargs)
             # await self.ws_loop(websocket)
 
 
@@ -155,57 +155,67 @@ async def main():
     while not task.done():
         await asyncio.sleep(1)
 
+
 async def little_benchmark():
-    messagebatch = 100
-    count_per_batch = 10
+    messagebatch = 10
+    count_per_batch = 3
 
     conversationchannel = 2
     # fanf get a client
     fanf = PPC()
     fanf.setup_token(await fanf.login("fanf", "fanf"))
-    
-    async def fanfloop(ws: websockets.WebSocketClientProtocol,count):
-        msg_counter=count
+
+    async def fanfloop(ws: websockets.WebSocketClientProtocol, count):
+        msg_counter = count
         while True:
             msg = await ws.recv()
             m = json.loads(msg)
 
-            print("received",m)
-            msg_counter-=1
-            if msg_counter==0:
-                if m["content"]=="hello":
+            print("received", m)
+            msg_counter -= 1
+            if msg_counter == 0:
+                if m["content"] == "hello":
                     break
                 else:
                     print("error")
                     break
 
-    task = asyncio.create_task(fanf.ws_client_connection(fanfloop,messagebatch))
+    task = asyncio.create_task(fanf.ws_client_connection(fanfloop, messagebatch))
 
     # ted will send message to fanf
     ted = PPC()
     ted.setup_token(await ted.login("ted", "ted"))
 
     start_time = time.time()
-    
-    # pushing message in batchs 
-    # prepare division batch
-    batch_count = (messagebatch-1)//count_per_batch
 
-    remaining = (messagebatch-1) - batch_count*count_per_batch
-    
-    for i in ([count_per_batch]*batch_count + [remaining]):
-        print("sending batch ",i)
-        await asyncio.gather(*[ted.usermsg(conversationchannel, "some randome string "*3) for _ in range(i)])
+    # pushing message in batchs
+    # prepare division batch
+    batch_count = (messagebatch - 1) // count_per_batch
+
+    remaining = (messagebatch - 1) - batch_count * count_per_batch
+
+    for i in [count_per_batch] * batch_count + [remaining]:
+        print("sending batch ", i)
+        await asyncio.gather(
+            *[
+                ted.usermsg(conversationchannel, "some randome string " * 3)
+                for _ in range(i)
+            ]
+        )
 
     await ted.usermsg(conversationchannel, "hello")
-
-    print("ted sent all messages")
+    sending_duration = time.time() - start_time
+    print(
+        f"ted sent all messages in {sending_duration:.2f}.  ({messagebatch/sending_duration:.2f} msg/sec)"
+    )
     while not task.done():
-        await asyncio.sleep(.1)
+        await asyncio.sleep(0.1)
     end_time = time.time()
     print("done benchmark :)")
-    dur = end_time-start_time
-    print(f"elapsed time : {dur:.2f} sec, for {messagebatch} messages. ({messagebatch/dur:.2f} msg/sec)")
+    dur = end_time - start_time
+    print(
+        f"elapsed time : {dur:.2f} sec, for {messagebatch} messages. ({messagebatch/dur:.2f} msg/sec)"
+    )
 
 
 if __name__ == "__main__":

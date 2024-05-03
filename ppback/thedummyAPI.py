@@ -3,17 +3,22 @@ import json
 import logging
 import os
 import time
-from typing import Annotated, List, Tuple
+from typing import Annotated, Dict, List, Tuple
 
 import fastapi
 import jwt
-from fastapi import Depends, HTTPException, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocketDisconnect
+from fastapi.concurrency import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
+from opentelemetry import trace
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy.orm import Session, joinedload
 
 from ppback.db.db_connect import get_session
-from ppback.db.dbfuncs import membersof
+from ppback.db.dbfuncs import allusers, hook_user, membersof, user_allowed_in_convo
 from ppback.db.ppdb_schemas import (
     Conv,
     Convchanges,
@@ -21,6 +26,7 @@ from ppback.db.ppdb_schemas import (
     ConvPrivacyMembers,
     UserInfo,
 )
+from ppback.init_tracing import global_tracing_setup
 from ppback.ppschema import MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
 from ppback.secu.sec_utils import check_password
 
@@ -63,8 +69,27 @@ class InMemSockets:
         return res
 
 
+cache_backend = InMemoryBackend()
 logger = logging.getLogger("ppback")
-app = fastapi.FastAPI()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the ML model
+    FastAPICache.init(cache_backend, prefix="fastapi-cache")
+    yield
+    # Clean up the ML models and release the resources
+
+
+app = FastAPI(lifespan=lifespan)
+
+TRACING_ENDPOINT = os.getenv("TRACING_ENDPOINT", "")
+if TRACING_ENDPOINT:
+    global_tracing_setup(TRACING_ENDPOINT)
+
+# Instrument FastAPI app to automatically generate spans:
+FastAPIInstrumentor.instrument_app(app)
+tracer = trace.get_tracer(__name__)
 
 
 MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydumykey")
@@ -89,7 +114,9 @@ inmemsockets = InMemSockets()
 
 # Database access dependency
 async def get_db():
-    db = get_session(DB_SESSION_STR)()
+    with tracer.start_as_current_span("get_session"):
+        db = get_session(DB_SESSION_STR)()
+
     try:
         yield db
     finally:
@@ -102,22 +129,25 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)], session: Session = Depends(get_db)
-):
+) -> Dict:
     """user validation dependency; to be used in all Endpoint."""
     # to improve : use some cache here to save a database call
-    user = decode_token(token, session)
-    return user
+    with tracer.start_as_current_span("get_current_user"):
+        user = await decode_token(token, session)
+        return user
 
 
-def decode_token(token, session) -> UserInfo:
-    decoded = jwt.decode(
-        token,
-        key=MASTER_SECRET_KEY,
-        algorithms=[
-            "HS256",
-        ],
-    )
-    return session.query(UserInfo).filter(UserInfo.id == decoded["user_id"]).first()
+async def decode_token(token, session) -> Dict:
+    with tracer.start_as_current_span("decode_token"):
+        decoded = jwt.decode(
+            token,
+            key=MASTER_SECRET_KEY,
+            algorithms=[
+                "HS256",
+            ],
+        )
+        with tracer.start_as_current_span("hook_user"):
+            return await hook_user(session, decoded["user_id"])
 
 
 @app.post("/token")
@@ -126,7 +156,7 @@ async def login(
     session: Session = Depends(get_db),
 ):
 
-    # find user information in sqlite
+    # find user information in db
     user_info = (
         session.query(UserInfo).filter(UserInfo.name == form_data.username).first()
     )
@@ -146,15 +176,24 @@ async def login(
     return {"access_token": token, "token_type": "bearer"}
 
 
+@app.get("/users")
+async def list_users(
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    session: Session = Depends(get_db),
+):
+    with tracer.start_as_current_span("all_users_in_db"):
+        return await allusers(session)
+
+
 @app.get("/conv")
 async def list_conv(
-    current_user: Annotated[UserInfo, Depends(get_current_user)],
+    current_user: Annotated[Dict, Depends(get_current_user)],
     session: Session = Depends(get_db),
 ):
     """list the conversations"""
 
     q = session.query(ConvPrivacyMembers).filter(
-        ConvPrivacyMembers.user_id == current_user.id
+        ConvPrivacyMembers.user_id == current_user["id"]
     )
     all_convids = [v.conv_id for v in q.all()]
     all_convs = session.query(Conv).filter(Conv.id.in_(all_convids)).all()
@@ -162,19 +201,10 @@ async def list_conv(
     return [{"id": _.id, "label": _.label} for _ in all_convs]
 
 
-@app.get("/users")
-async def list_conv(
-    current_user: Annotated[UserInfo, Depends(get_current_user)],
-    session: Session = Depends(get_db),
-):
-    allu = session.query(UserInfo).all()
-    return [{"id": u.id, "name": u.name, "nickname": u.nickname} for u in allu]
-
-
 @app.get("/conv/{conversation_id}")
 async def getconv(
     conversation_id: int,
-    user: Annotated[UserInfo, Depends(get_current_user)],
+    user: Annotated[Dict, Depends(get_current_user)],
     session: Session = Depends(get_db),
     limit: int = 1000,
 ) -> List[MessageSchema]:
@@ -182,37 +212,33 @@ async def getconv(
     Retreive all last messages of a single conversation. Sorted by timestamp
 
     """
-    privacycheck = (
-        session.query(ConvPrivacyMembers)
-        .filter(
-            (ConvPrivacyMembers.user_id == user.id)
-            & (ConvPrivacyMembers.conv_id == conversation_id)
-        )
-        .count()
-    )
+    with tracer.start_as_current_span("privacy_check"):
+        privacycheck = await user_allowed_in_convo(session, user["id"], conversation_id)
 
     if privacycheck == 1:
-        results = (
-            session.query(Convchanges)
-            .join(ConvoMessage, Convchanges.change_id == ConvoMessage.id)
-            .filter(
-                (Convchanges.conv_id == conversation_id)
-                & (Convchanges.change_type == "message")
+        with tracer.start_as_current_span("read_conv_db"):
+            results = (
+                session.query(Convchanges)
+                .join(ConvoMessage, Convchanges.change_id == ConvoMessage.id)
+                .filter(
+                    (Convchanges.conv_id == conversation_id)
+                    & (Convchanges.change_type == "message")
+                )
+                .options(joinedload(Convchanges.convo_message))
+                .order_by(Convchanges.ts.desc())
+                .limit(limit)
+                .all()
             )
-            .options(joinedload(Convchanges.convo_message))
-            .order_by(Convchanges.ts.desc())
-            .limit(limit)
-            .all()
-        )
-        all_results = []
-        for result in reversed(results):
-            ms = MessageSchema(
-                id=result.id,
-                content=result.convo_message.content,
-                sender=result.convo_message.sender_id,
-                ts=result.ts,
-            )
-            all_results.append(ms.model_dump())
+        with tracer.start_as_current_span("process_conv_db"):
+            all_results = []
+            for result in reversed(results):
+                ms = MessageSchema(
+                    id=result.id,
+                    content=result.convo_message.content,
+                    sender=result.convo_message.sender_id,
+                    ts=result.ts,
+                )
+                all_results.append(ms.model_dump())
 
         return all_results
     else:
@@ -264,22 +290,23 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         pld = json.loads(data["bytes"])
         token = pld[1].split(" ")[-1]
         session = await anext(get_db())
-        user = decode_token(token, session)  # this raise exception if failed
-
-        logger.warning("got user %s ", user.name)
-        if not inmemsockets.can_add_user(user.id):
+        user = await decode_token(token, session)  # this raise exception if failed
+        user_id = user["id"]
+        user_name = user["name"]
+        logger.warning("got user %s ", user_name)
+        if not inmemsockets.can_add_user(user_id):
             await websocket.close()
 
-        idx = inmemsockets.add_user(user.id, websocket)
+        idx = inmemsockets.add_user(user_id, websocket)
 
         keep_user_connected = True
         while keep_user_connected:
             try:
                 data = await websocket.receive_text()
             except WebSocketDisconnect:
-                logger.warning("dropping user %s ", user.id)
+                logger.warning("dropping user %s ", user_id)
             finally:
-                inmemsockets.drop_user(user.id, idx)
+                inmemsockets.drop_user(user_id, idx)
 
             return
 
@@ -290,19 +317,21 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
 
 
 async def broadcast_message_to_users(
-    from_user: UserInfo, convo_id, user_ids: List[int], message: str
+    from_user_id: int, convo_id, user_ids: List[int], message: str
 ):
-    coros = []
-
-    for websocket in inmemsockets.get_sockets_for_many(user_ids):
-        m = MessageWS(convo_id=convo_id, content=message, originator=from_user.id)
-        coros.append(websocket.send_text(m.model_dump_json()))
-
     async def t(coros):
-        await asyncio.gather(*coros)
-    asyncio.create_task(t(coros))
-    #all_res = await asyncio.gather(*coros)
+        with tracer.start_as_current_span("bcast_gather"):
+            await asyncio.gather(*coros)
 
+    with tracer.start_as_current_span("broadcast_message_to_users"):
+        coros = []
+
+        for websocket in inmemsockets.get_sockets_for_many(user_ids):
+            m = MessageWS(convo_id=convo_id, content=message, originator=from_user_id)
+            coros.append(websocket.send_text(m.model_dump_json()))
+
+        asyncio.create_task(t(coros))
+    # all_res = await asyncio.gather(*coros)
 
 
 @app.post("/usermsg", response_model=MsgOutputSchema)
@@ -317,34 +346,35 @@ async def new_msg(
     Raises:
         HTTPException: If there is an issue with storing the message.
     """
-    new_content = msg.content
 
-    privacycheck = (
-        session.query(ConvPrivacyMembers)
-        .filter(
-            (ConvPrivacyMembers.user_id == user.id)
-            & (ConvPrivacyMembers.conv_id == msg.conversation_id)
+    with tracer.start_as_current_span("privacy_check"):
+        privacycheck = await user_allowed_in_convo(
+            session, user["id"], msg.conversation_id
         )
-        .count()
-    )
 
     if privacycheck:
-        convo = session.query(Conv).filter(Conv.id == msg.conversation_id).first()
-        cm = ConvoMessage(content=new_content, sender_id=user.id)
-        session.add(cm)
-        session.commit()
-        cc = Convchanges(
-            ts=time.time(), conv_id=convo.id, change_type="message", change_id=cm.id
+        convo_id = msg.conversation_id
+
+        with tracer.start_as_current_span("store_message"):
+            cm = ConvoMessage(content=msg.content, sender_id=user["id"])
+            session.add(cm)
+            session.commit()
+
+        with tracer.start_as_current_span("store_changes"):
+            cc = Convchanges(
+                ts=time.time(), conv_id=convo_id, change_type="message", change_id=cm.id
+            )
+
+            session.add(cc)
+            session.commit()
+
+        with tracer.start_as_current_span("find_members_of_convo"):
+            members = await membersof(session, convo_id)
+            usersto_send = [u["user_id"] for u in members]
+
+        await broadcast_message_to_users(
+            user["id"], convo_id, usersto_send, msg.content
         )
-
-        session.add(cc)
-        session.commit()
-
-        members = membersof(session,convo.id)
-        usersto_send = [u.user_id for u in members]
-
-        await broadcast_message_to_users(user, convo.id, usersto_send, new_content)
-        return {"status": "ok", "messageid":cm.id}
+        return {"status": "ok", "messageid": cm.id}
 
     raise HTTPException(400, detail="error posting message")
-

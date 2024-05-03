@@ -12,20 +12,20 @@ from opentelemetry.sdk.trace.export import (
 )
 
 
-def global_tracing_setup():
+def global_tracing_setup(endpoint):
     # create a TracerProvider
-    trace.set_tracer_provider(
-        TracerProvider(resource=Resource.create({SERVICE_NAME: "ppapi"}))
-    )
-    tracer = trace.get_tracer(__name__)
-
+    tp = TracerProvider(resource=Resource.create({SERVICE_NAME: "ppapi"}))
     # create a JaegerExporter
-    jaeger_exporter = OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
+    jaeger_exporter = OTLPSpanExporter(endpoint=endpoint)
 
     # Create a BatchSpanProcessor and add the exporter to it
     span_processor = BatchSpanProcessor(jaeger_exporter)
 
-    # trace.get_tracer()
+    # add to the tracer
+    tp.add_span_processor(span_processor)
+    trace.set_tracer_provider(tp)
+
+    # tracer = trace.get_tracer(__name__)
 
 
 def local_tracing_setup(service_name="ppapi", exporter="console"):

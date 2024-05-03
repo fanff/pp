@@ -1,5 +1,5 @@
 
-
+httpx
 textual
 textual-dev
 mistletoe 
@@ -30,3 +30,4 @@ numpy
 
 isort
 pylint 
+fastapi-cache2
