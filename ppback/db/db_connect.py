@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.engine import Engine
 
 
-def create_session(dbstr):
+def create_session(dbstr) -> tuple[Session, Engine]:
+    """Create a new database session and engine."""
     # Create an engine that stores data in the local directory's
     # chat_database.db file.
     engine = create_engine(dbstr)
@@ -12,7 +14,3 @@ def create_session(dbstr):
     dbession = sessionmaker(bind=engine)
     session = dbession()
     return session, engine
-
-
-def get_session(dbstr):
-    return sessionmaker(autoflush=True, bind=create_engine(dbstr))

@@ -603,7 +603,7 @@ class SimpleApp(App):
 
                     m = MessageWS.model_validate_json(wsmsg)
 
-                    originator = m.originator
+                    originator = m.originator_id
                     content = m.content
                     convo_id = m.convo_id
 

@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
-# create a sumple user with simpel password 
+# create a simple user with simpel password 
 RUN useradd -m -s /app/pp_ascii/textualpp.py user
 RUN passwd -d user
 

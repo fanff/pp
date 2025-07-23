@@ -24,7 +24,7 @@ def global_tracing_setup(endpoint):
     tp.add_span_processor(span_processor)
     trace.set_tracer_provider(tp)
 
-    # tracer = trace.get_tracer(__name__)
+    
 
 
 def local_tracing_setup(service_name="ppapi", exporter="console"):

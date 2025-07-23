@@ -17,7 +17,7 @@ from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy.orm import Session, joinedload
 
-from ppback.db.db_connect import get_session
+from ppback.db.db_connect import create_session
 from ppback.db.dbfuncs import allusers, hook_user, membersof, user_allowed_in_convo
 from ppback.db.ppdb_schemas import (
     Conv,
@@ -122,8 +122,7 @@ inmemsockets = InMemSockets()
 # Database access dependency
 async def get_db():
     with tracer.start_as_current_span("get_session"):
-        db = get_session(DB_SESSION_STR)()
-
+        db, _engine = create_session(DB_SESSION_STR)
     try:
         yield db
     finally:
@@ -222,7 +221,7 @@ async def getconv(
     with tracer.start_as_current_span("privacy_check"):
         privacycheck = await user_allowed_in_convo(session, user["id"], conversation_id)
 
-    if privacycheck == 1:
+    if privacycheck:
         with tracer.start_as_current_span("read_conv_db"):
             results = (
                 session.query(Convchanges)
@@ -326,6 +325,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
 async def broadcast_message_to_users(
     from_user_id: int, convo_id, user_ids: List[int], message: str
 ):
+    """Broadcast a message to users in a conversation."""
+
     async def t(coros):
         with tracer.start_as_current_span("bcast_gather"):
             await asyncio.gather(*coros)
@@ -333,12 +334,13 @@ async def broadcast_message_to_users(
     with tracer.start_as_current_span("broadcast_message_to_users"):
         coros = []
 
+        message_json_payload = MessageWS(
+            convo_id=convo_id, content=message, originator_id=from_user_id
+        ).model_dump_json()
         for websocket in inmemsockets.get_sockets_for_many(user_ids):
-            m = MessageWS(convo_id=convo_id, content=message, originator=from_user_id)
-            coros.append(websocket.send_text(m.model_dump_json()))
+            coros.append(websocket.send_text(message_json_payload))
 
         asyncio.create_task(t(coros))
-    # all_res = await asyncio.gather(*coros)
 
 
 @app.post("/usermsg", response_model=MsgOutputSchema)

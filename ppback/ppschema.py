@@ -34,6 +34,8 @@ class MessageSchema(BaseModel):
 
 # web socket simple schemas
 class MessageWS(BaseModel):
-    content: str
-    originator: int
+    """Model representing a message in a web service context."""
+
+    originator_id: int
     convo_id: int
+    content: str

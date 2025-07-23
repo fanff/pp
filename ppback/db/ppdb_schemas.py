@@ -59,13 +59,14 @@ class UserInfo(Base):
 
 class ConvPrivacyMembers(Base):
     __tablename__ = "conv_privacy_members"
+    __table_args__ = (UniqueConstraint("conv_id", "user_id", name="conv_user_uc"),)
     id: int = Column(Integer, primary_key=True, index=True)
     conv_id: int = Column(Integer, ForeignKey("conversations.id"))
     user_id: int = Column(Integer, ForeignKey("userinfo.id"))
-    UniqueConstraint("conv_id", "user_id", name="conv_user_uc")
     role: str = Column(
         String,
-    )  # member
+        default="member",
+    )
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
