@@ -1,17 +1,6 @@
 version: '3.8'
 services:
   
-  # front end server for delivering front end packaged by godot engine. 
-  # (yes.. Godot, because react is way too serious to be fun in a personal project. )
-  #god:
-  #  build:
-  #    context: .
-  #    dockerfile: ./Dockerfile_god
-  #  ports:
-  #    - 8002:80
-  #  expose:
-  #    - 8002
-#
   ## the front end served as a "textual ui" in ssh. because why not.
   sshsrv:
     build:

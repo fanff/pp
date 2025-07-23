@@ -5,13 +5,13 @@ from opentelemetry import trace
 
 from ppback.db.ppdb_schemas import Conv, ConvPrivacyMembers, UserInfo
 
-from ..secu.sec_utils import get_hashed_password
+from ppback.secu.sec_utils import get_hashed_password
 
 tracer = trace.get_tracer(__name__)
 
 
 def key_builder(func, namespace: str = "", *, request, response, args, kwargs):
-
+    """Build a cache key based on the function name, namespace, and arguments."""
     values = [namespace, func.__name__] + [
         str(k) for k in args if isinstance(k, (str, int, float))
     ]
@@ -23,7 +23,7 @@ def key_builder(func, namespace: str = "", *, request, response, args, kwargs):
 
 
 def add_users(session, users: List[Tuple[str, str]]):
-    """give me the session and the list of [(nick:password)]"""
+    """Add users to the database."""
     allu = []
     for k, p in users:
         # create a user named fanf
@@ -37,6 +37,7 @@ def add_users(session, users: List[Tuple[str, str]]):
 
 
 def create_convo(session, name: str, users: List[UserInfo]):
+    """Create a conversation and add users to it."""
     # create a conversation
     c1 = Conv(label=name)
     session.add(c1)

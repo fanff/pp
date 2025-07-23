@@ -34,16 +34,23 @@ from ppback.secu.sec_utils import check_password
 class InMemSockets:
     """Keeping sockets open, in a global memory object."""
 
-    def __init__(self):
+    def __init__(self, limit=5):
+        """Initialize the InMemSockets with a limit on concurrent connections."""
+        # This is a list of [user_id, socket, idx]
         self.items: List[Tuple[int, fastapi.WebSocket, int]] = []
-        self.limit = 5
+        # limit the number of concurrent connections per user
+        self.limit = limit
+        # this is a simple index to give a unique id to each socket
         self.idx = 0
 
     def gen_idx(self):
+        """Generate a new index for the socket."""
         self.idx += 1
         return self.idx
 
     def can_add_user(self, user_id):
+        """Check if a user can add a new socket connection."""
+
         return self.count_for_user(user_id) < self.limit
 
     def add_user(self, user_id, socket) -> int:
