@@ -2,6 +2,11 @@
 node_modules
 .venv
 .git
+.gitignore
 .ipynb_checkpoints
-simple_nc
-crew_ai_test
+
+
+devdb
+db_jaegger
+
+

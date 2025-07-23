@@ -20,7 +20,6 @@ services:
     build:
       context: .
       dockerfile: ./ppback_docker/Dockerfileback
-    command: uvicorn ppback.thedummyAPI:app --host 0.0.0.0 --port 8000 --workers 1
     ports:
       - 8000:8000
     expose:
@@ -29,24 +28,6 @@ services:
       - MASTER_SECRET_KEY=the_secret_key
       - DB_SESSION_STR=postgresql://myuser:mypassword@postgres:5432/mydatabase
       - TRACING_ENDPOINT=http://jaeger:4318/v1/traces
-      # work technically in term of connectivity.
-      # but database initialisation is not :(. In
-      # - DB_SESSION_STR=dynamodb://somevalue:somevalue@dynamodb.ddb.amazonaws.com:8001?verify=false&use_ssl=false&endpoint_url=http%3A%2F%2Fddb%3A8000
-    
-  # dynamoDB version local dev by aws.
-  # internally it is a sqlite database wrapped around dynamo compatible interface. 
-  # question is, why is database init with sql alchemy not working ? 
-  #ddb:
-  #  command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
-  #  image: "amazon/dynamodb-local:latest"
-  #  ports:
-  #    - "8000:8000"
-  #  expose:
-  #     - 8000
-  #  volumes:
-  #    - "./devdb/dynamodb:/home/dynamodblocal/data"
-  #  working_dir: /home/dynamodblocal
-
 
   postgres:
     image: postgres:latest
