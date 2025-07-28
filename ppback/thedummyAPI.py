@@ -56,8 +56,6 @@ FastAPIInstrumentor.instrument_app(app)
 tracer = trace.get_tracer(__name__)
 
 # getting the host name of the machine
-# this is used to identify the server in the logs
-# and in the tracing
 HOSTNAME = os.getenv("HOSTNAME", "localhost")
 
 MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydumykey")

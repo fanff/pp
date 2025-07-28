@@ -20,12 +20,5 @@ def create_starting_point_db(session):
     create_convo(session, "Te\nst Space", users)
 
 
-def init_db():
+def init_db(session, engine):
     Base.metadata.create_all(engine)
-    create_starting_point_db(session)
-
-
-session, engine = create_session(
-    os.getenv("DB_SESSION_STR", "sqlite:///devdb/chat_database.db")
-)
-init_db()

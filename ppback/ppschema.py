@@ -1,6 +1,6 @@
 """Schema definitions for the API and web socket messages."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field,ConfigDict
 
 
 # base schema model for API
@@ -21,8 +21,8 @@ class MessageSchema(BaseModel):
     )
     ts: float = Field(..., description="The timestamp when the message was sent.")
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra = {
             "example": {
                 "id": 1,
                 "content": "Hello, this is a test message.",
@@ -30,6 +30,7 @@ class MessageSchema(BaseModel):
                 "ts": 129887837.3443,
             }
         }
+    )
 
 
 # web socket simple schemas

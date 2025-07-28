@@ -1,4 +1,5 @@
 import logging
+from logging import config
 
 logging_config = {
     "version": 1,
@@ -45,7 +46,7 @@ logging_config = {
 
 def setup_logging():
     """Set up logging configuration."""
-    logging.config.dictConfig(logging_config)
+    config.dictConfig(logging_config)
     logger = logging.getLogger("ppback")
     logger.info("Logging is set up with the provided configuration.")
     return logger
