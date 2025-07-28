@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from typing import Annotated, Dict, List, Tuple
+from typing import Annotated, Any, AsyncGenerator, Dict, List, Tuple
 
 import fastapi
 import jwt
@@ -15,69 +15,26 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, joinedload, sessionmaker
 
-from ppback.db.db_connect import create_session
-from ppback.db.dbfuncs import allusers, hook_user, membersof, user_allowed_in_convo
-from ppback.db.ppdb_schemas import (
-    Conv,
-    Convchanges,
-    ConvoMessage,
-    ConvPrivacyMembers,
-    UserInfo,
+from ppback.db.dbfuncs import (
+    allusers,
+    get_conversation_list_for_user,
+    membersof,
+    user_allowed_in_convo,
 )
+from ppback.db.ppdb_schemas import Convchanges, ConvoMessage, UserInfo
 from ppback.init_tracing import global_tracing_setup
+from ppback.logging_config import setup_logging
 from ppback.ppschema import MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
 from ppback.secu.sec_utils import check_password
+from ppback.wsocket import InMemSockets
 
-
-class InMemSockets:
-    """Keeping sockets open, in a global memory object."""
-
-    def __init__(self, limit=5):
-        """Initialize the InMemSockets with a limit on concurrent connections."""
-        # This is a list of [user_id, socket, idx]
-        self.items: List[Tuple[int, fastapi.WebSocket, int]] = []
-        # limit the number of concurrent connections per user
-        self.limit = limit
-        # this is a simple index to give a unique id to each socket
-        self.idx = 0
-
-    def gen_idx(self):
-        """Generate a new index for the socket."""
-        self.idx += 1
-        return self.idx
-
-    def can_add_user(self, user_id):
-        """Check if a user can add a new socket connection."""
-
-        return self.count_for_user(user_id) < self.limit
-
-    def add_user(self, user_id, socket) -> int:
-        idx = self.gen_idx()
-        self.items.append([user_id, socket, idx])
-        return idx
-
-    def count_for_user(self, user_id):
-        return len(self.get_sockets_for(user_id))
-
-    def drop_user(self, user_id, idx):
-        self.items = [
-            _ for _ in self.items if not ((_[0] == user_id) and (_[2] == idx))
-        ]
-
-    def get_sockets_for(self, user_id):
-        return [_[1] for _ in self.items if _[0] == user_id]
-
-    def get_sockets_for_many(self, user_ids) -> List[fastapi.WebSocket]:
-        res = []
-        for u in user_ids:
-            res += self.get_sockets_for(u)
-        return res
-
-
-cache_backend = InMemoryBackend()
+# Configure logging
+setup_logging()
 logger = logging.getLogger("ppback")
+cache_backend = InMemoryBackend()
 
 
 @asynccontextmanager
@@ -98,6 +55,10 @@ if TRACING_ENDPOINT:
 FastAPIInstrumentor.instrument_app(app)
 tracer = trace.get_tracer(__name__)
 
+# getting the host name of the machine
+# this is used to identify the server in the logs
+# and in the tracing
+HOSTNAME = os.getenv("HOSTNAME", "localhost")
 
 MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydumykey")
 DB_SESSION_STR = os.getenv("DB_SESSION_STR", "sqlite:///devdb/chat_database.db")
@@ -118,42 +79,35 @@ if CORS_ORIGIN_STR:
 # global object to hold open websocket connexion for user broadcast.
 inmemsockets = InMemSockets()
 
-
-# Database access dependency
-async def get_db():
-    with tracer.start_as_current_span("get_session"):
-        db, _engine = create_session(DB_SESSION_STR)
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 # oauth2 with user pass in a /token endpoint.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)], session: Session = Depends(get_db)
-) -> Dict:
-    """user validation dependency; to be used in all Endpoint."""
-    # to improve : use some cache here to save a database call
-    with tracer.start_as_current_span("get_current_user"):
-        user = await decode_token(token, session)
-        return user
+# Create a pooled engine
+dbengine = create_engine(DB_SESSION_STR, pool_size=10, max_overflow=20)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
 
 
-async def decode_token(token, session) -> Dict:
-    with tracer.start_as_current_span("decode_token"):
-        decoded = jwt.decode(
-            token,
-            key=MASTER_SECRET_KEY,
-            algorithms=[
-                "HS256",
-            ],
-        )
-        with tracer.start_as_current_span("hook_user"):
-            return await hook_user(session, decoded["user_id"])
+# Database access dependency
+async def get_db() -> AsyncGenerator[Session, Any]:
+    with tracer.start_as_current_span("get_session"):
+        logger.debug("Getting a database session from the pool")
+        session = SessionLocal()
+    try:
+        yield session
+    finally:
+        logger.debug("Closing the database session")
+        session.close()
+
+
+async def decode_token(token: Annotated[str, Depends(oauth2_scheme)]) -> int:
+    decoded = jwt.decode(
+        token,
+        key=MASTER_SECRET_KEY,
+        algorithms=["HS256"],
+        verify=True,
+    )
+    user_id = int(decoded["user_id"])
+    return user_id
 
 
 @app.post("/token")
@@ -184,34 +138,26 @@ async def login(
 
 @app.get("/users")
 async def list_users(
-    current_user: Annotated[Dict, Depends(get_current_user)],
-    session: Session = Depends(get_db),
+    current_user_id: Annotated[int, Depends(decode_token)],
 ):
+    logger.info("Fetching all users for user %s", current_user_id)
     with tracer.start_as_current_span("all_users_in_db"):
-        return await allusers(session)
+        return await allusers(get_db)
 
 
 @app.get("/conv")
 async def list_conv(
-    current_user: Annotated[Dict, Depends(get_current_user)],
-    session: Session = Depends(get_db),
+    current_user_id: Annotated[int, Depends(decode_token)],
 ):
-    """list the conversations"""
-
-    q = session.query(ConvPrivacyMembers).filter(
-        ConvPrivacyMembers.user_id == current_user["id"]
-    )
-    all_convids = [v.conv_id for v in q.all()]
-    all_convs = session.query(Conv).filter(Conv.id.in_(all_convids)).all()
-
-    return [{"id": _.id, "label": _.label} for _ in all_convs]
+    """List the conversations accessible to the user."""
+    logger.info("Fetching conversations for user %s", current_user_id)
+    return await get_conversation_list_for_user(get_db, current_user_id)
 
 
 @app.get("/conv/{conversation_id}")
 async def getconv(
     conversation_id: int,
-    user: Annotated[Dict, Depends(get_current_user)],
-    session: Session = Depends(get_db),
+    current_user_id: Annotated[int, Depends(decode_token)],
     limit: int = 1000,
 ) -> List[MessageSchema]:
     """
@@ -219,9 +165,12 @@ async def getconv(
 
     """
     with tracer.start_as_current_span("privacy_check"):
-        privacycheck = await user_allowed_in_convo(session, user["id"], conversation_id)
+        privacycheck = await user_allowed_in_convo(
+            get_db, current_user_id, conversation_id
+        )
 
     if privacycheck:
+        session: Session = await anext(get_db())
         with tracer.start_as_current_span("read_conv_db"):
             results = (
                 session.query(Convchanges)
@@ -235,6 +184,7 @@ async def getconv(
                 .limit(limit)
                 .all()
             )
+
         with tracer.start_as_current_span("process_conv_db"):
             all_results = []
             for result in reversed(results):
@@ -322,32 +272,10 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         # await websocket.send_text(f"Message text was: {data}")
 
 
-async def broadcast_message_to_users(
-    from_user_id: int, convo_id, user_ids: List[int], message: str
-):
-    """Broadcast a message to users in a conversation."""
-
-    async def t(coros):
-        with tracer.start_as_current_span("bcast_gather"):
-            await asyncio.gather(*coros)
-
-    with tracer.start_as_current_span("broadcast_message_to_users"):
-        coros = []
-
-        message_json_payload = MessageWS(
-            convo_id=convo_id, content=message, originator_id=from_user_id
-        ).model_dump_json()
-        for websocket in inmemsockets.get_sockets_for_many(user_ids):
-            coros.append(websocket.send_text(message_json_payload))
-
-        asyncio.create_task(t(coros))
-
-
 @app.post("/usermsg", response_model=MsgOutputSchema)
 async def new_msg(
     msg: MsgInputSchema,
-    user: Annotated[UserInfo, Depends(get_current_user)],
-    session: Session = Depends(get_db),
+    current_user_id: Annotated[int, Depends(decode_token)],
 ):
     """
     Endpoint to post a new message to a conversation. This will store it & propagate it to every connected users
@@ -358,32 +286,37 @@ async def new_msg(
 
     with tracer.start_as_current_span("privacy_check"):
         privacycheck = await user_allowed_in_convo(
-            session, user["id"], msg.conversation_id
+            get_db, current_user_id, msg.conversation_id
         )
 
     if privacycheck:
         convo_id = msg.conversation_id
-
-        with tracer.start_as_current_span("store_message"):
-            cm = ConvoMessage(content=msg.content, sender_id=user["id"])
+        session: Session = await anext(get_db())
+        with tracer.start_as_current_span("store_message_and_changes"):
+            # Add the first object
+            cm = ConvoMessage(content=msg.content, sender_id=current_user_id)
             session.add(cm)
-            session.commit()
-
-        with tracer.start_as_current_span("store_changes"):
+            session.flush()
+            session.refresh(cm)
+            conversation_message_id = cm.id
+            # Use the ID of the first object for the second object
             cc = Convchanges(
-                ts=time.time(), conv_id=convo_id, change_type="message", change_id=cm.id
+                ts=time.time(),
+                conv_id=convo_id,
+                change_type="message",
+                change_id=conversation_message_id,
             )
-
             session.add(cc)
+            # Commit both objects in a single transaction
             session.commit()
 
         with tracer.start_as_current_span("find_members_of_convo"):
             members = await membersof(session, convo_id)
             usersto_send = [u["user_id"] for u in members]
 
-        await broadcast_message_to_users(
-            user["id"], convo_id, usersto_send, msg.content
+        await inmemsockets.broadcast_message_to_users(
+            current_user_id, convo_id, usersto_send, msg.content
         )
-        return {"status": "ok", "messageid": cm.id}
+        return {"status": "ok", "messageid": conversation_message_id}
 
     raise HTTPException(400, detail="error posting message")

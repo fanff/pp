@@ -5,7 +5,7 @@ import httpx
 import websockets
 
 
-class PPC:
+class PPClient:
     def __init__(self, apihost="http://localhost:8000/", wshost="ws://localhost:8000/"):
         self.host = apihost
 
@@ -93,7 +93,7 @@ class PPC:
         thetoken = self.token["access_token"]
         async with websockets.connect(uri) as websocket:
             await websocket.send(
-                json.dumps(["somestuff", f"Authorization: Bearer {thetoken}"]).encode(
+                json.dumps(["ppclient", f"Authorization: Bearer {thetoken}"]).encode(
                     "utf-8"
                 )
             )
@@ -114,7 +114,7 @@ async def main():
     """here is a sequence of API usage :"""
 
     # fanf get a client
-    c = PPC()
+    c = PPClient()
     # do login
     l2 = await c.login("fanf", "fanf")
     print(l2)
@@ -143,7 +143,7 @@ async def main():
 
     # ted get aclient
     print("ted enter the room")
-    ct = PPC()
+    ct = PPClient()
     # and does login
     l2 = await c.login("ted", "ted")
     ct.setup_token(l2)
@@ -162,7 +162,7 @@ async def little_benchmark():
 
     conversationchannel = 2
     # fanf get a client
-    fanf = PPC()
+    fanf = PPClient()
     fanf.setup_token(await fanf.login("fanf", "fanf"))
 
     async def fanfloop(ws: websockets.WebSocketClientProtocol, count):
@@ -183,7 +183,7 @@ async def little_benchmark():
     task = asyncio.create_task(fanf.ws_client_connection(fanfloop, messagebatch))
 
     # ted will send message to fanf
-    ted = PPC()
+    ted = PPClient()
     ted.setup_token(await ted.login("ted", "ted"))
 
     start_time = time.time()

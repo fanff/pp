@@ -1,43 +1,42 @@
 #!/usr/bin/env python3
 
+import asyncio
 import datetime
 import json
 import os
+import uuid
+from time import time
 from types import NoneType
 from typing import List
-import uuid
 
 import websockets
-
-from textual.app import App
 from textual import events
 from textual.app import App, ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.reactive import reactive
 from textual.widgets import (
-    Welcome,
     Button,
-    TextArea,
-    Static,
-    Label,
-    RichLog,
-    ListView,
-    Tree,
     ContentSwitcher,
     DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    ListItem,
+    ListView,
     Markdown,
+    RichLog,
+    Rule,
+    Static,
+    TabbedContent,
+    TabPane,
+    TextArea,
+    Tree,
 )
-from textual.widgets import Footer, Label, ListItem, ListView, Input
-from textual.widgets import Label, Rule
-from textual.widgets import Footer, Label, Markdown, TabbedContent, TabPane
-
 from textual.widgets._tree import TreeNode
-import asyncio
-from textual.containers import Horizontal, ScrollableContainer, Vertical
-from time import time
-from textual.reactive import reactive
-
 
 from ppback.ppschema import MessageWS
-from ppback.thedummyclient import PPC
+from ppback.thedummyclient import PPClient
 
 
 class MessageInputBox(Static):
@@ -303,7 +302,7 @@ class DiscussionWidget(Static):
 
     async def pipe_message_to_ai(self, msg):
         self.queueinbound.put_nowait(msg)
-        ppc: PPC = self.app.ppc
+        ppc: PPClient = self.app.ppc
         await ppc.usermsg(self.conv_id, msg)
 
     async def update_response_loop(self, aqueue: asyncio.Queue):
@@ -528,26 +527,45 @@ class ProfilePanel(Static):
 
 
 class UserPassPanel(Static):
+    def __init__(self, user=None, password=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.border_title = "Login"
+        self.user = user if user is not None else ""
+        self.password = password if password is not None else ""
+
+        self.login_button = Button("Login", id="login_button", classes="login_button")
+
+    def focus_login_button(self):
+        """Focus the login button."""
+        self.login_button.focus()
 
     def compose(self):
         with Vertical():
             yield Label("Username:")
-            yield Input(placeholder="username", max_length=20, classes="username")
             yield Input(
-                placeholder="password", password=True, max_length=30, classes="password"
+                value=self.user,
+                placeholder="username",
+                max_length=20,
+                classes="username",
             )
-            yield Button("Login")
+            yield Input(
+                value=self.password,
+                placeholder="password",
+                password=True,
+                max_length=30,
+                classes="password",
+            )
+            yield self.login_button
 
     def on_button_pressed(self) -> None:
         inpuser: Input = self.query_one(".username")
         inppass: Input = self.query_one(".password")
-        btn: Button = self.query_one(Button)
         inpuser.disabled = True
         inppass.disabled = True
-        btn.disabled = True
+        self.login_button.disabled = True
 
         async def on_b_p(u, p):
-            ppc: PPC = self.app.ppc
+            ppc: PPClient = self.app.ppc
             success = await ppc.login(u, p)
 
             if success:
@@ -558,33 +576,57 @@ class UserPassPanel(Static):
                 # inpuser.clear()
                 inpuser.disabled = False
                 inppass.disabled = False
-                btn.disabled = False
+                self.login_button.disabled = False
                 inpuser.focus()
 
         self.app.call_later(on_b_p, inpuser.value, inppass.value)
 
 
-class SimpleApp(App):
+class PP(App):
     CSS_PATH = "pp.tcss"
-    ppc: PPC = None
+    BINDINGS = [
+        ("Q", "quit", "Quit"),
+    ]
+    # client for PP server
+    ppc: PPClient = None
+
     ws_task: asyncio.Task = None
 
-    myuser_id = ""
+    def __init__(self, user=None, password=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    userscache = {}
+        # websocket reading task
+        self.ws_task = None
+        self.myuser_id = None
+        self.userscache = {}
+
+        self.user_name_input = user
+        self.password_input = password
+
+        self.api_host = os.getenv("PPN_HOST", "http://localhost:8000/")
+        self.api_ws_host = os.getenv("PPN_WSHOST", "ws://localhost:8000/")
+
+        self.user_pass_panel = UserPassPanel(
+            user=self.user_name_input, password=self.password_input
+        )
 
     def compose(self) -> ComposeResult:
 
-        # ,ProfilePanel()
-        # ContactPanel()
-        yield Horizontal(UserPassPanel())  # ,DiscussionWidget())
+        yield Header()
+        yield Horizontal(self.user_pass_panel)
+        yield Footer()
 
     def on_mount(self):
 
-        self.ppc = PPC(
-            os.getenv("PPN_HOST", "http://localhost:8000/"),
-            os.getenv("PPN_WSHOST", "ws://localhost:8000/"),
+        self.ppc = PPClient(
+            self.api_host,
+            self.api_ws_host,
         )
+
+        if self.user_name_input:
+            self.user_pass_panel.focus_login_button()
+            # simulate a button press
+            self.user_pass_panel.login_button.press()
 
     def on_contact_panel_selected(self, selected: ContactPanel.Selected) -> None:
         selected.convo_id
@@ -595,7 +637,7 @@ class SimpleApp(App):
         # for child in cs.children:
         #    child.display = bool(dws.initial_discussion_id) and child.id == dws.initial_discussion_id
 
-    async def wsreading_task(self, ppc: PPC):
+    async def wsreading_task(self, ppc: PPClient):
         async def ta(ws: websockets.WebSocketClientProtocol):
             while True:
                 wsmsg = await ws.recv()
@@ -603,7 +645,7 @@ class SimpleApp(App):
 
                     m = MessageWS.model_validate_json(wsmsg)
 
-                    originator = m.originator_id
+                    originator_id = m.originator_id
                     content = m.content
                     convo_id = m.convo_id
 
@@ -615,18 +657,18 @@ class SimpleApp(App):
                     dw: DiscussionWidget = self.query_one(f"#{dwid}")
 
                     strts = datetime.datetime.now().strftime("%H:%M")
-                    if self.myuser_id == originator:
+                    if self.myuser_id == originator_id:
                         convo = dw.query_one(Convo)
 
                         await convo.append_user_msg(
-                            "-1", content, self.get_nick_name(originator), strts
+                            "-1", content, self.get_nick_name(originator_id), strts
                         )
 
                     else:
                         anid = random_widget_id()
                         convo = dw.query_one(Convo)
                         await convo.append_other_msg(
-                            anid, content, self.get_nick_name(originator), strts
+                            anid, content, self.get_nick_name(originator_id), strts
                         )
                         # dw.aqueueoutput.put_nowait(({"op":"replace","path":"","value":{"id":anid}},))
                         # dw.aqueueoutput.put_nowait((anid, self.get_nick_name(originator), content))
@@ -641,11 +683,38 @@ class SimpleApp(App):
     def my_nick_name(self) -> str:
         return self.get_nick_name(self.myuser_id)
 
-    async def on_login_success(self, usernameused):
+    async def resync_user_cache(self):
+        """Resync the user cache from the server."""
+        all_users = await self.ppc.users()
+        self.userscache = {}
+        for u in all_users:
+            if u["name"] == self.user_name_input:
+                self.myuser_id = u["id"]
+            self.userscache[u["id"]] = u
 
-        ppc = self.ppc
-        if self.ws_task is None:
-            self.ws_task = asyncio.create_task(self.wsreading_task(ppc))
+    async def on_login_success(self, usernameused):
+        self.user_name_input = usernameused
+
+        # resync users
+        await self.resync_user_cache()
+
+        # clean up ui
+        await self.query_one(Horizontal).remove_children(UserPassPanel)
+
+        # mount the contact Panel
+        cp = ContactPanel()
+        await self.query_one(Horizontal).mount(cp)
+
+        # mount the list of discussions (it is the switcher of discussions)
+        dws = DiscussionsWidgets()
+        await self.query_one(Horizontal).mount(dws)
+        cs = dws.query_one(ContentSwitcher)
+
+        # now the UI is filled with components
+
+        # we can start the websocket reading task
+        if self.ws_task is None or self.ws_task.done():
+            self.ws_task = asyncio.create_task(self.wsreading_task(self.ppc))
 
             def check_asynctask_status():
                 if self.ws_task.done():
@@ -656,31 +725,8 @@ class SimpleApp(App):
 
             self.set_interval(0.1, check_asynctask_status)
 
-        # resync users
-        all_users = await ppc.users()
-        self.myuser_id = None
-        self.userscache = {}
-        for u in all_users:
-            if u["name"] == usernameused:
-                self.myuser_id = u["id"]
-            self.userscache[u["id"]] = u
-
-        # clean up ui
-        await self.query_one(Horizontal).remove_children(UserPassPanel)
-
-        # get the conversations from server
-        # convodata = [{"id": "1", "name": "live_chat"}, {"id": "2", "name": "second_chat"}, {"id": "3", "name": "yet_another_chat"}]
-        # mount the contact Panel
-        cp = ContactPanel()
-        await self.query_one(Horizontal).mount(cp)
-
-        # mount the list of discussions (it is the switcher of discussions)
-        dws = DiscussionsWidgets()
-        await self.query_one(Horizontal).mount(dws)
-        cs = dws.query_one(ContentSwitcher)
-
         # fetch conversations
-        convodata = await ppc.conv()
+        convodata = await self.ppc.conv()
 
         convoidtodw = {}
         for convo in convodata:
@@ -708,10 +754,10 @@ class SimpleApp(App):
 
         for convo in convodata:
             dw: DiscussionWidget = convoidtodw[convo["id"]]
-            convo_content = await ppc.convid(convo["id"])
+            convo_content = await self.ppc.convid(convo["id"])
             convowidget = dw.query_one(Convo)
             for c in sorted(convo_content, key=lambda x: x["ts"]):
-                c["id"], c["content"], c["ts"], c["sender"]
+                # c is a dict with keys: id, content, sender, ts
                 strts = datetime.datetime.fromtimestamp(c["ts"]).strftime("%H:%M")
                 if self.myuser_id == c["sender"]:
                     await convowidget.append_user_msg(
@@ -735,9 +781,16 @@ class SimpleApp(App):
             # [{'id': 1, 'content': 'fdsq', 'sender': 1, 'ts': 1714224104.39881}
 
 
-if __name__ == "__main__":
-    app = SimpleApp()
-    # qi = app.query_one(DiscussionWidget).queueinbound
-    # qo = app.query_one(DiscussionWidget).aqueueoutput
-    # task = asyncio.create_task(manage_agent(qi, None, qo))
+def main(user=None, password=None):
+    app = PP(user=user, password=password)
     app.run()
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Run the PP ASCII client.")
+    parser.add_argument("--user", "-u", type=str, help="Username for login")
+    parser.add_argument("--password", "-p", type=str, help="Password for login")
+    args = parser.parse_args()
+    main(user=args.user, password=args.password)

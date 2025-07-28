@@ -1,7 +1,7 @@
 [project]
 name = "pp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Simple conversational backend server"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -19,9 +19,15 @@ dependencies = [
     "python-multipart>=0.0.20",
     "sqlalchemy>=2.0.41",
     "textual>=4.0.0",
+    "textual-serve>=1.1.2",
     "uvicorn>=0.35.0",
     "websockets>=15.0.1",
 ]
 
 [dependency-groups]
-dev = ["black>=25.1.0", "isort>=6.0.1", "pre-commit>=4.2.0"]
+dev = [
+    "black>=25.1.0",
+ "isort>=6.0.1",
+ "pre-commit>=4.2.0",
+ "textual-dev>=1.7.0",
+]

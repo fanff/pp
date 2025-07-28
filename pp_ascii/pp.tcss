@@ -105,3 +105,9 @@ BorderTitledMsg {
   border: round $accent;
   padding: 1;
 }
+
+
+UserCreationForm {
+  border: round $accent;
+  padding: 2;
+}

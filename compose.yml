@@ -20,10 +20,13 @@ services:
     build:
       context: .
       dockerfile: ./ppback_docker/Dockerfileback
+    command: uv run uvicorn ppback.thedummyAPI:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - 8000:8000
     expose:
       - 8000
+    volumes:
+      - ./ppback:/app/ppback
     environment:
       - MASTER_SECRET_KEY=the_secret_key
       - DB_SESSION_STR=postgresql://myuser:mypassword@postgres:5432/mydatabase
@@ -45,12 +48,14 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-  #redis_server:
-  #  image: redis:alpine
-  #  ports:
-  #    - 6379:6379 # Remove this on production
-  #  expose:
-  #    - 6379
+
+      
+  redis_server:
+    image: redis:alpine
+    ports:
+      - 6379:6379 # Remove this on production
+    expose:
+      - 6379
 
   jaeger:
     # https://www.jaegertracing.io/docs/1.55/deployment/ (oltp not working in 1.6)
