@@ -2,9 +2,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_get_users(client):
+async def test_get_conversations(client):
     client, (alice_token, bob_token, charlie_token) = client
-    response = client.get("/users/", headers={"Authorization": f"Bearer {alice_token}"})
+    response = client.get("/conv/", headers={"Authorization": f"Bearer {alice_token}"})
 
     # Assert the response status code is 200 (OK)
     assert response.status_code == 200
@@ -13,6 +13,6 @@ async def test_get_users(client):
     data = response.json()
     assert isinstance(data, list)
 
-    assert len(data) == 3 
-    assert data[0]["name"] == "alice"
-    assert data[0]["nickname"] == "alice"
+    assert len(data) == 2
+    assert data[0]["label"] == "general"
+    assert data[1]["label"] == "a_and_b"

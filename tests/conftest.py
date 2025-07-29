@@ -1,5 +1,6 @@
 
 
+import os
 import time
 from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
@@ -21,29 +22,45 @@ def client():
 
     # Ensure that tables are created for the test
     Base.metadata.create_all(bind=engine_test)
-
     # Create a session using your app's sessionmaker (SessionLocal is assumed from app config)
     # We won’t be managing the session directly; the app will use it.
     SessionLocalTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
     db = SessionLocalTest()
 
-    # Optionally, create a test user
-    add_users(db, [["testuser", "testpassword"]])
+    # create a test users and conversations
+    user_alice = add_users(db, [["alice", "testpassword"]])[0]
+    user_bob = add_users(db, [["bob", "testpassword"]])[0]
+    user_charlie = add_users(db, [["charlie", "testpassword"]])[0]
+
+    create_convo(db, "general", [user_alice.id, user_bob.id, user_charlie.id])
+    create_convo(db, "a_and_b", [user_alice.id, user_bob.id])
     db.close()
 
     client = TestClient(app)
     cache_backend = InMemoryBackend()
     FastAPICache.init(cache_backend, prefix="fastapi-cache")
-    response = client.post("/token", data={"username": "testuser", 
+    alice_token = client.post("/token", data={"username": "alice", 
                                 "password": "testpassword",
                                 "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"})
+                                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                ).json()["access_token"]
 
-    token = response.json()["access_token"]
+    bob_token = client.post("/token", data={"username": "bob", 
+                                "password": "testpassword",
+                                "grant_type":"password"},
+                                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                ).json()["access_token"]
+
+    charlie_token = client.post("/token", data={"username": "charlie", 
+                                "password": "testpassword",
+                                "grant_type":"password"},
+                                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                                ).json()["access_token"]
 
 
-    yield client,token
-    
+
+    yield client,(alice_token,bob_token,charlie_token)
+    # Teardown: close the client after tests
     client.close()
 
     # Teardown: drop the tables after tests

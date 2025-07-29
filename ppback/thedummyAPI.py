@@ -82,8 +82,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Create a pooled engine
 dbengine = create_engine(DB_SESSION_STR, pool_size=10, max_overflow=20)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
 
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
 
 # Database access dependency
 async def get_db() -> AsyncGenerator[Session, Any]:

@@ -42,15 +42,15 @@ def add_users(session: Session, users: List[Tuple[str, str]]):
     return allu
 
 
-def create_convo(session: Session, name: str, users: List[UserInfo]):
+def create_convo(session: Session, name: str, users: List[int]):
     """Create a conversation and add users to it."""
     # create a conversation
     c1 = Conv(label=name)
     session.add(c1)
     session.commit()
 
-    for user in users:
-        cpm = ConvPrivacyMembers(conv_id=c1.id, user_id=user.id, role="member")
+    for user_id in users:
+        cpm = ConvPrivacyMembers(conv_id=c1.id, user_id=user_id, role="member")
         session.add(cpm)
     session.commit()
 
@@ -60,6 +60,7 @@ async def get_conversation_list_for_user(
     session_builder: AsyncGenerator[Session, Session], user_id: int
 ) -> List[Dict[str, Any]]:
     """Get a list of conversations for a specific user."""
+    logger.debug(f"Fetching conversations for user {user_id}")
     with tracer.start_as_current_span("get_conversation_list_for_user_db"):
         session: Session = await anext(session_builder())
         convs = (
