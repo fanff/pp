@@ -17,11 +17,10 @@ dependencies = [
     "pydantic>=2.11.7",
     "pyjwt>=2.10.1",
     "python-multipart>=0.0.20",
-    "sqlalchemy>=2.0.41",
-    "textual>=4.0.0",
-    "textual-serve>=1.1.2",
+    "sqlalchemy>=2.0",
+    "textual>=6.0.0",
     "uvicorn>=0.35.0",
-    "websockets>=15.0.1",
+    "websockets>=16.0",
 ]
 
 [dependency-groups]
@@ -33,5 +32,3 @@ dev = [
     "pytest-asyncio>=1.1.0",
     "textual-dev>=1.7.0",
 ]
-
-

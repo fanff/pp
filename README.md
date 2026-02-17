@@ -11,31 +11,31 @@ It features:
 * The API is intentionally simple, facilitating easy interactions for sending and receiving messages. 
 * **WebSockets** for real-time communication, enabling continuous, bidirectional exchanges between clients and the server.
 * A simple TUI client for testing the backend; made with [Textual](https://textual.textualize.io/)
-* A UI client made with [godot engine](https://godotengine.org/)
+
 
 ## Development mode: 
 
-Just install the requirements.txt in your virtual environment and run the backend with the following command: 
+Just ```uv sync``` your virtual environment and run the backend with the following command: 
 
 ```bash
 
-uvicorn ppback.main:app --reload
+uvicorn ppback.thedummyAPI:app --reload
 
 ```
 
 Database initialization is done with the following command: 
 
 ```bash
-python ppback/init_db.py
+python -m ppback.init_db
 ```
 Default user passowrd are "fanf:fanf" and "ted:ted". (Me and my teddy bear )
 
 The TUI client can be run with the following command: 
 
 ```bash
-export PPN_HOST="http://backend:8000/"
-export PPN_WSHOST="ws://backend:8000/"
-python pp_ascii/textualpp.py
+export PPN_HOST="http://localhost:8000/"
+export PPN_WSHOST="ws://localhost:8000/"
+python -m pp_ascii.textualpp
 ```
 
 
@@ -66,9 +66,6 @@ docker compose build
 
 # start up
 docker compose up -d 
-
-# to init the database there is a init_db.py script that can be run once.
-docker compose exec backend python /app/ppback/init_db.py
 
 # grab logs 
 docker compose logs -f 

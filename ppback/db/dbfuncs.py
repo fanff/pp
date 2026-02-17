@@ -42,15 +42,15 @@ def add_users(session: Session, users: List[Tuple[str, str]]):
     return allu
 
 
-def create_convo(session: Session, name: str, users: List[int]):
+def create_convo(session: Session, name: str, users: List[UserInfo]):
     """Create a conversation and add users to it."""
     # create a conversation
     c1 = Conv(label=name)
     session.add(c1)
     session.commit()
 
-    for user_id in users:
-        cpm = ConvPrivacyMembers(conv_id=c1.id, user_id=user_id, role="member")
+    for user in users:
+        cpm = ConvPrivacyMembers(conv_id=c1.id, user_id=user.id, role="member")
         session.add(cpm)
     session.commit()
 
@@ -89,12 +89,11 @@ def membersof(session: Session, convo_id: int) -> List[Dict]:
 
 
 @cache(300, key_builder=key_builder)
-async def hook_user(session: Session, uid: int) -> dict:
+async def hook_user(session: Session, uid: int) -> UserInfo:
     """Fetch a user by ID."""
     with tracer.start_as_current_span("hook_user_db"):
         user: UserInfo = session.query(UserInfo).filter(UserInfo.id == uid).first()
-        return user.to_dict()
-
+        return user
 
 @cache(300, key_builder=key_builder)
 async def allusers(session_builder: AsyncGenerator[Session, Session]) -> List[Dict]:

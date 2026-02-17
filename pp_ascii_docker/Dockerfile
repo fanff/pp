@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     && rm -rf /var/lib/apt/lists/*
 
-# create a simple user with simpel password 
+# create a simple user with no password
 RUN useradd -m -s /app/pp_ascii/textualpp.py user
 RUN passwd -d user
 
@@ -31,10 +31,10 @@ RUN chmod +x /app/pp_ascii/textualpp.py
 
 # prepare the ssh server configuration
 ADD pp_ascii_docker/sshd_config /etc/ssh/sshd_config
-RUN mkdir /var/run/sshd
+RUN mkdir -p /var/run/sshd
 
 # windows user gonna inject environement in the windows format :(
-#ADD pp_ascii_docker/environment /etc/environment
+# add pp_ascii_docker/environment /etc/environment
 RUN echo "PYTHONPATH=\"/app\"" > /etc/environment
 # add the app directory to the PYTHONPATH
 ENV PYTHONPATH /app

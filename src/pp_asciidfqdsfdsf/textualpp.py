@@ -641,7 +641,7 @@ class PP(App):
         #    child.display = bool(dws.initial_discussion_id) and child.id == dws.initial_discussion_id
 
     async def wsreading_task(self, ppc: PPClient):
-        async def ta(ws: websockets.ClientConnection):
+        async def ta(ws: websockets.WebSocketClientProtocol):
             while True:
                 wsmsg = await ws.recv()
                 if isinstance(wsmsg, str):

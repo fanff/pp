@@ -35,10 +35,11 @@ class InMemSockets:
 
     def add_user(self, user_id, socket) -> int:
         idx = self.gen_idx()
-        self.items.append([user_id, socket, idx])
+        self.items.append((user_id, socket, idx))
         return idx
 
     def count_for_user(self, user_id):
+        """Count the number of sockets for a given user."""
         return len(self.get_sockets_for(user_id))
 
     def drop_user(self, user_id, idx):

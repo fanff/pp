@@ -5,7 +5,7 @@ import time
 from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
 from fastapi.testclient import TestClient
-from ppback.thedummyAPI import DB_SESSION_STR, app  # Your FastAPI app
+from ppback.main import DB_SESSION_STR, app  # Your FastAPI app
 from ppback.db.dbfuncs import add_users, create_convo
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend

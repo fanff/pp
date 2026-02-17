@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, joinedload, sessionmaker
 from ppback.db.dbfuncs import (
     allusers,
     get_conversation_list_for_user,
+    hook_user,
     membersof,
     user_allowed_in_convo,
 )
@@ -84,6 +85,18 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 dbengine = create_engine(DB_SESSION_STR, pool_size=10, max_overflow=20)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
+
+# initialize the database if not already done
+# test if the database is intialized by trying to query it. If it fails, initialize it.
+try:
+    session = SessionLocal()
+    session.query(UserInfo).first()
+except Exception as e:
+    logger.warning("Database not initialized, initializing now.")
+    from . import init_db
+    init_db.init_db(SessionLocal(), dbengine)
+    init_db.create_starting_point_db(SessionLocal())
+
 
 # Database access dependency
 async def get_db() -> AsyncGenerator[Session, Any]:
@@ -205,7 +218,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     # this method bellow is checking the "Authorization" in the websocket header connection packet.
     # This is not always working with every clients. (Godot engine client complained in web mode).
     # This SHOULD be the way to go; I don't want to accept the webscoekt connection if the user is not legitimate.
-    # But Godot.. <3.
+    # But Godot... 
     # try:
     #     token = websocket.headers.get("Authorization")
     #     token = token.split(" ")[1]
@@ -226,7 +239,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     # accept the connection
     await websocket.accept()
 
-    logger.info("accepting websocket ")
+    logger.info("accepting websocket connection from %s", websocket.client)
 
     try:
         # wait for the first packet. Since I accept anyone this is a DOS target...
@@ -244,10 +257,11 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         pld = json.loads(data["bytes"])
         token = pld[1].split(" ")[-1]
         session = await anext(get_db())
-        user = await decode_token(token, session)  # this raise exception if failed
-        user_id = user["id"]
-        user_name = user["name"]
-        logger.warning("got user %s ", user_name)
+        user_id = await decode_token(token)  # this raise exception if failed
+        user: UserInfo = await hook_user(session, user_id)  # this raise exception if failed
+        assert isinstance(user, UserInfo)
+        user_name = user.name
+        logger.info("got user %s ", user_name)
         if not inmemsockets.can_add_user(user_id):
             await websocket.close()
 
@@ -261,7 +275,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
                 logger.warning("dropping user %s ", user_id)
             finally:
                 inmemsockets.drop_user(user_id, idx)
-
             return
 
     except Exception:
