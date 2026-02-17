@@ -35,11 +35,11 @@ from ppback.wsocket import InMemSockets
 # Configure logging
 setup_logging()
 logger = logging.getLogger("ppback")
-cache_backend = InMemoryBackend()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    cache_backend = InMemoryBackend()
     # Load the ML model
     FastAPICache.init(cache_backend, prefix="fastapi-cache")
     yield
@@ -94,6 +94,7 @@ try:
 except Exception as e:
     logger.warning("Database not initialized, initializing now.")
     from . import init_db
+
     init_db.init_db(SessionLocal(), dbengine)
     init_db.create_starting_point_db(SessionLocal())
 
@@ -218,7 +219,7 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     # this method bellow is checking the "Authorization" in the websocket header connection packet.
     # This is not always working with every clients. (Godot engine client complained in web mode).
     # This SHOULD be the way to go; I don't want to accept the webscoekt connection if the user is not legitimate.
-    # But Godot... 
+    # But Godot...
     # try:
     #     token = websocket.headers.get("Authorization")
     #     token = token.split(" ")[1]
@@ -258,8 +259,11 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
         token = pld[1].split(" ")[-1]
         session = await anext(get_db())
         user_id = await decode_token(token)  # this raise exception if failed
-        user: UserInfo = await hook_user(session, user_id)  # this raise exception if failed
-        assert isinstance(user, UserInfo)
+        user = await hook_user(session, user_id)  # this raise exception if failed
+        if not isinstance(user, UserInfo):
+            user = UserInfo.from_dict(
+                user
+            )  # in case the cache return a dict instead of an object
         user_name = user.name
         logger.info("got user %s ", user_name)
         if not inmemsockets.can_add_user(user_id):

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import relationship,declarative_base
+from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
@@ -54,6 +54,10 @@ class UserInfo(Base):
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**{c.name: data.get(c.name) for c in cls.__table__.columns})
 
 
 class ConvPrivacyMembers(Base):

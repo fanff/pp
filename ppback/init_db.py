@@ -7,17 +7,12 @@ from ppback.db.ppdb_schemas import Base
 
 def create_starting_point_db(session):
 
-    users = [("fanf", "fanf"), ("ted", "ted")]
+    users = [("admin", "admin"), ("user", "user")]
     users = add_users(session, users)
 
     create_convo(session, "General", users)
-    create_convo(session, "About", users)
-    create_convo(session, "Test", users)
     create_convo(session, "Random", users)
-
-    # testing werid stuff for the ui
-    create_convo(session, "Test Space", users)
-    create_convo(session, "Te\nst Space", users)
+    create_convo(session, "About", users)
 
 
 def init_db(session, engine):
@@ -26,6 +21,7 @@ def init_db(session, engine):
 
 if __name__ == "__main__":
     from . import main
+
     print("Initializing DB at " + main.DB_SESSION_STR)
     session, engine = create_session(main.DB_SESSION_STR)
     init_db(session, engine)

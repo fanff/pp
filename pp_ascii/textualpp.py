@@ -7,8 +7,7 @@ import os
 import uuid
 from time import time
 from types import NoneType
-from typing import List
-
+from typing import List, Dict
 import websockets
 from textual import events
 from textual.app import App, ComposeResult
@@ -36,7 +35,7 @@ from textual.widgets import (
 from textual.widgets._tree import TreeNode
 
 from ppback.ppschema import MessageWS
-from ppback.thedummyclient import PPClient
+from ppback.apiclient import PPClient
 
 
 class MessageInputBox(Static):
@@ -68,31 +67,6 @@ class BorderTitledMsg(Static):
     def _on_blur(self, event: events.Blur) -> None:
         pass  # self.remove_class("selected_msg")
 
-        # with Vertical():
-        #    with Horizontal(classes="msg_header"):
-        #        with Horizontal(classes="msg_header_left"):
-        #            yield Label("")
-        #            yield Label("12:12")
-        #            yield Label(" ")
-        #            yield Label("Fanff")
-        #        with Horizontal(classes="msg_header_right"):
-        #            yield Label("",name="msg_header_right_0")
-        #            yield Label("12:12",name="msg_header_right_1")
-        #            yield Label(" ",name="msg_header_right_2")
-        #            yield Label("Fanff",name="msg_header_right_3")
-        #
-        #    with Horizontal(classes="msg_footer"):
-        #        with Horizontal(classes="msg_footer_left"):
-        #            yield Label("↵")
-        #            yield Label("12:12")
-        #            yield Label(" ")
-        #            yield Label("Fanff")
-        #        with Horizontal(classes="msg_footer_right"):
-        #            yield Label("")
-        #            yield Label("12:12")
-        #            yield Label(" ")
-        #            yield Label("Fanff")
-
 
 class Convo(ScrollableContainer):
     can_focus = True
@@ -110,10 +84,10 @@ class Convo(ScrollableContainer):
 
             def do_scroll_():
                 self.is_timer_running = False
-                self.scroll_end()
+                self.scroll_end(animate=False, immediate=True)
 
             self.is_timer_running = True
-            self.set_timer(0.1, do_scroll_)
+            self.set_timer(0.2, do_scroll_)
 
     async def append_msg(self, msg, auto_scroll=True):
         await self.mount(msg)
@@ -130,7 +104,7 @@ class Convo(ScrollableContainer):
         await self.append_msg(other_msg, auto_scroll=False)
 
         other_msg.msg_id = msg_id
-        other_msg.tree_id = None
+        other_msg.tree_id = ""
 
         other_msg.username = sendernick
         other_msg.msg_content = content
@@ -426,8 +400,8 @@ class OtherMsg(BorderTitledMsg):
     username = reactive("User")
     msg_time = reactive("")
     msg_content = reactive("")
-    msg_id: str = reactive("")
-    tree_id: str = reactive("")
+    msg_id = reactive("")
+    tree_id = reactive("")
 
     def on_mount(self) -> None:
         self.classes = "othermsg"
@@ -464,7 +438,7 @@ class UserMsg(BorderTitledMsg):
 
 
 class ContactPanel(Static):
-    
+
     convo_id_to_widget_id = {}
 
     class Selected(events.Message):
@@ -541,7 +515,7 @@ class UserPassPanel(Static):
 
     def compose(self):
         with Vertical():
-            yield Label("Host: %s"% self.app.ppc.host)
+            yield Label("Host: %s" % self.app.ppc.host)
             yield Label("Username:")
             yield Input(
                 value=self.user,
@@ -593,7 +567,9 @@ class PP(App):
 
     ws_task: asyncio.Task = None
 
-    def __init__(self, user=None, password=None, host=None, ws_host=None, *args, **kwargs):
+    def __init__(
+        self, user=None, password=None, host=None, ws_host=None, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
 
         # websocket reading task
@@ -604,15 +580,16 @@ class PP(App):
         self.user_name_input = user
         self.password_input = password
 
-        self.api_host = host 
-        
-        self.api_ws_host  = ws_host
-        
+        self.api_host = host
+
+        self.api_ws_host = ws_host
+
         self.user_pass_panel: UserPassPanel
-        self.ppc:PPClient = PPClient(
+        self.ppc: PPClient = PPClient(
             self.api_host,
             self.api_ws_host,
         )
+
     def compose(self) -> ComposeResult:
 
         yield Header()
@@ -623,8 +600,6 @@ class PP(App):
         yield Footer()
 
     def on_mount(self):
-
-        
 
         if self.user_name_input:
             self.user_pass_panel.focus_login_button()
@@ -731,7 +706,7 @@ class PP(App):
         # fetch conversations
         convodata = await self.ppc.conv()
 
-        convoidtodw = {}
+        convoidtodw: Dict[str, DiscussionWidget] = {}
         for convo in convodata:
             # for each conversation, create field in the contact Panel
             # await cplv.mount(ListItem(Label(f"@ {convo['name']}")))
@@ -758,7 +733,7 @@ class PP(App):
         for convo in convodata:
             dw: DiscussionWidget = convoidtodw[convo["id"]]
             convo_content = await self.ppc.convid(convo["id"])
-            convowidget = dw.query_one(Convo)
+            convowidget: Convo = dw.query_one(Convo)
             for c in sorted(convo_content, key=lambda x: x["ts"]):
                 # c is a dict with keys: id, content, sender, ts
                 strts = datetime.datetime.fromtimestamp(c["ts"]).strftime("%H:%M")
@@ -779,7 +754,6 @@ class PP(App):
                         strts,
                         auto_scroll=False,
                     )
-
             convowidget.timer_scroll_end()
             # [{'id': 1, 'content': 'fdsq', 'sender': 1, 'ts': 1714224104.39881}
 
@@ -795,11 +769,15 @@ def main() -> None:
     parser.add_argument("--password", "-p", type=str, help="Password for login")
     # host and ws host params
     parser.add_argument("--host", type=str, default=host, help="API host URL")
-    parser.add_argument("--ws_host", type=str, default=ws_host, help="WebSocket host URL")
+    parser.add_argument(
+        "--ws_host", type=str, default=ws_host, help="WebSocket host URL"
+    )
 
     args = parser.parse_args()
 
-    app = PP(user=args.user, password=args.password, host=args.host, ws_host=args.ws_host)
+    app = PP(
+        user=args.user, password=args.password, host=args.host, ws_host=args.ws_host
+    )
     app.run()
 
 

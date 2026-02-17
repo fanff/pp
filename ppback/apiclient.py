@@ -3,23 +3,25 @@ import time
 
 import httpx
 import websockets
+from typing import Dict, List
 
 
 class PPClient:
     def __init__(self, apihost="http://localhost:8000/", wshost="ws://localhost:8000/"):
-        self.host = apihost
+        self.host: str = apihost
 
-        self.wshost = wshost
-        self.token = None
-        self.headers = {"accept": "application/json"}
+        self.wshost: str = wshost
+        self.token: Dict = None
+        self.headers: Dict[str, str] = {"accept": "application/json"}
 
     async def login(self, user_id: str, passwd: str):
         h = dict(self.headers.copy())
         h["Content-Type"] = "application/x-www-form-urlencoded"
         async with httpx.AsyncClient() as client:
             try:
+                endpoint = self.host.rstrip("/") + "/token"
                 r = await client.post(
-                    self.host + "token",
+                    endpoint,
                     headers=h,
                     data={"username": user_id, "password": passwd},
                 )
@@ -38,8 +40,8 @@ class PPClient:
 
         return h
 
-    def setup_token(self, d):
-        self.token = d
+    def setup_token(self, login_dict: Dict):
+        self.token = login_dict
 
     async def simple_get_query(
         self,
@@ -48,7 +50,8 @@ class PPClient:
         async with httpx.AsyncClient() as client:
             try:
                 r = await client.get(
-                    self.host + endpoint, headers=self.header_with_token()
+                    self.host.rstrip("/") + "/" + endpoint.lstrip("/"),
+                    headers=self.header_with_token(),
                 )
                 if r.status_code == 200:
                     return r.json()
@@ -70,7 +73,7 @@ class PPClient:
         async with httpx.AsyncClient() as client:
             try:
                 r = await client.post(
-                    self.host + "usermsg",
+                    self.host.rstrip("/") + "/" + "usermsg".lstrip("/"),
                     headers=self.header_with_token(),
                     json={"content": message, "conversation_id": conversation_id},
                 )
@@ -83,13 +86,15 @@ class PPClient:
 
     async def ws_client_connection_the_rightversion(self, awaitable_loop):
         h = self.header_with_token()
-        async with websockets.connect(self.wshost + "ws", extra_headers=h) as websocket:
+        async with websockets.connect(
+            self.wshost.rstrip("/") + "/" + "ws".lstrip("/"), extra_headers=h
+        ) as websocket:
             # websocket.send({"user_id":user_id,"passwd":passwd,"op":"login"})
             await awaitable_loop(websocket)
             # await self.ws_loop(websocket)
 
     async def ws_client_connection(self, awaitable_loop, *args, **kwargs):
-        uri = self.wshost + "ws"
+        uri = self.wshost.rstrip("/") + "/" + "ws"
         thetoken = self.token["access_token"]
         async with websockets.connect(uri) as websocket:
             await websocket.send(
@@ -101,7 +106,7 @@ class PPClient:
             # await self.ws_loop(websocket)
 
 
-async def ws_loop(ws: websockets.WebSocketClientProtocol):
+async def ws_loop(ws: websockets.ClientConnection):
     while True:
         try:
             msg = await ws.recv()
@@ -161,11 +166,11 @@ async def little_benchmark():
     count_per_batch = 3
 
     conversationchannel = 2
-    # fanf get a client
-    fanf = PPClient()
-    fanf.setup_token(await fanf.login("fanf", "fanf"))
+    # admin get a client
+    admin = PPClient()
+    admin.setup_token(await admin.login("admin", "admin"))
 
-    async def fanfloop(ws: websockets.WebSocketClientProtocol, count):
+    async def _adminloop(ws: websockets.ClientConnection, count):
         msg_counter = count
         while True:
             msg = await ws.recv()
@@ -180,11 +185,11 @@ async def little_benchmark():
                     print("error")
                     break
 
-    task = asyncio.create_task(fanf.ws_client_connection(fanfloop, messagebatch))
+    task = asyncio.create_task(admin.ws_client_connection(_adminloop, messagebatch))
 
-    # ted will send message to fanf
-    ted = PPClient()
-    ted.setup_token(await ted.login("ted", "ted"))
+    # user will send message to admin
+    user = PPClient()
+    user.setup_token(await user.login("user", "user"))
 
     start_time = time.time()
 
@@ -198,15 +203,15 @@ async def little_benchmark():
         print("sending batch ", i)
         await asyncio.gather(
             *[
-                ted.usermsg(conversationchannel, "some randome string " * 3)
+                user.usermsg(conversationchannel, "some randome string " * 3)
                 for _ in range(i)
             ]
         )
 
-    await ted.usermsg(conversationchannel, "hello")
+    await user.usermsg(conversationchannel, "hello")
     sending_duration = time.time() - start_time
     print(
-        f"ted sent all messages in {sending_duration:.2f}.  ({messagebatch/sending_duration:.2f} msg/sec)"
+        f"user sent all messages in {sending_duration:.2f}.  ({messagebatch/sending_duration:.2f} msg/sec)"
     )
     while not task.done():
         await asyncio.sleep(0.1)

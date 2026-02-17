@@ -95,6 +95,7 @@ async def hook_user(session: Session, uid: int) -> UserInfo:
         user: UserInfo = session.query(UserInfo).filter(UserInfo.id == uid).first()
         return user
 
+
 @cache(300, key_builder=key_builder)
 async def allusers(session_builder: AsyncGenerator[Session, Session]) -> List[Dict]:
     """Fetch all users from the database."""
