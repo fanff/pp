@@ -24,7 +24,7 @@ ADD pp_ascii /app/pp_ascii
 RUN mkdir /app/ppback/
 ADD ppback/ppschema.py /app/ppback/
 RUN touch /app/ppback/__init__.py
-ADD ppback/thedummyclient.py /app/ppback/
+ADD ppback/apiclient.py /app/ppback/
 
 # change execution for the main file
 RUN chmod +x /app/pp_ascii/textualpp.py

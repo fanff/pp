@@ -63,9 +63,9 @@ MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydumykey")
 DB_SESSION_STR = os.getenv("DB_SESSION_STR", "sqlite:///devdb/chat_database.db")
 CORS_ORIGIN_STR = os.getenv("CORS_ORIGIN_STR", "")  # comma delimited list of domains
 
-if CORS_ORIGIN_STR:
-    origins = json.loads(CORS_ORIGIN_STR)
-
+if CORS_ORIGIN_STR != "":
+    origins = CORS_ORIGIN_STR.split(",")
+    logger.info("Setting CORS allowed origins to %s", origins)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,  # List of origins

@@ -1,17 +1,4 @@
 services:
-  
-  ## the front end served as a "textual ui" in ssh. because why not.
-  sshsrv:
-    build:
-      context: .
-      dockerfile: ./pp_ascii_docker/Dockerfile
-    ports:
-      - 2222:2222
-    expose:
-      - 2222
-    environment:
-      - PPN_HOST=http://backend:8000/
-      - PPN_WSHOST=ws://backend:8000/
 
 
   # backend chat conversation
@@ -30,6 +17,7 @@ services:
       - MASTER_SECRET_KEY=the_secret_key
       - DB_SESSION_STR=postgresql://myuser:mypassword@postgres:5432/mydatabase
       - TRACING_ENDPOINT=http://jaeger:4318/v1/traces
+      - CORS_ORIGIN_STR=http://localhost:8080,http://127.0.0.1:8080
 
   postgres:
     image: postgres:latest
@@ -47,25 +35,39 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-
-      
-  redis_server:
-    image: redis:alpine
+  ## the front end served as a "textual ui" in ssh. because why not.
+  sshsrv:
+    build:
+      context: .
+      dockerfile: ./pp_ascii_docker/Dockerfile
     ports:
-      - 6379:6379 # Remove this on production
+      - 2222:2222
     expose:
-      - 6379
+      - 2222
+    environment:
+      - PPN_HOST=http://backend:8000/
+      - PPN_WSHOST=ws://backend:8000/
+
+  ## the front end served as a "textual ui" in ssh. because why not.
+  godocli:
+    build:
+      context: pp_godot
+      dockerfile: Dockerfile_godot
+    ports:
+      - 8080:80
+    expose:
+      - 8080
 
   jaeger:
-    # https://www.jaegertracing.io/docs/1.55/deployment/ (oltp not working in 1.6)
+    # https://www.jaegertracing.io
     image: cr.jaegertracing.io/jaegertracing/jaeger:2.15.0
     environment:
       - COLLECTOR_ZIPKIN_HTTP_PORT=9411
-      - COLLECTOR_OTLP_ENABLED=true 
+      - COLLECTOR_OTLP_ENABLED=true
       - SPAN_STORAGE_TYPE=badger
       - BADGER_EPHEMERAL=false
       - BADGER_DIRECTORY_VALUE=/badger/data
-      - BADGER_DIRECTORY_KEY=/badger/key 
+      - BADGER_DIRECTORY_KEY=/badger/key
     ports:
       - "5775:5775/udp"
       - "6831:6831/udp"
@@ -74,8 +76,8 @@ services:
       - "16686:16686"
       - "14268:14268"
       - "9411:9411"
-      - "4317:4317" # oltp ports 
-      - "4318:4318" # oltp ports 
+      - "4317:4317" # oltp ports
+      - "4318:4318" # oltp ports
     volumes:
       - ./db_jaegger/badget:/badger
 
