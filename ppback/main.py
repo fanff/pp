@@ -26,7 +26,7 @@ from ppback.db.dbfuncs import (
     membersof,
     user_allowed_in_convo,
 )
-from ppback.db.ppdb_schemas import Convchanges, ConvoMessage, UserInfo
+from ppback.db.ppdb_schemas import Base, Convchanges, ConvoMessage, UserInfo
 from ppback.init_tracing import global_tracing_setup
 from ppback.logging_config import setup_logging
 from ppback.ppschema import ConversationCreate, ConversationItem, ConversationList, MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
@@ -63,6 +63,11 @@ HOSTNAME = os.getenv("HOSTNAME", "localhost")
 MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydummykey")
 DB_SESSION_STR = os.getenv("DB_SESSION_STR", "sqlite:///devdb.sqlite")
 CORS_ORIGIN_STR = os.getenv("CORS_ORIGIN_STR", "*")  # comma delimited list of domains
+AUTO_INIT_DB = os.getenv("PPBACK_AUTO_INIT_DB", "1").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 if CORS_ORIGIN_STR != "":
     origins = CORS_ORIGIN_STR.split(",")
@@ -87,19 +92,34 @@ dbengine = create_engine(DB_SESSION_STR, pool_size=10, max_overflow=20)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
 
-# initialize the database if not already done
-# test if the database is intialized by trying to query it. If it fails, initialize it.
-try:
-    session = SessionLocal()
-    user:UserInfo = session.query(UserInfo).first()
-    if user is None:
-        raise Exception("create db")
-    logger.info("user found %s",user.name)
-except Exception as e:
-    logger.warning("Database not initialized, initializing now.")
-    from . import init_db
+def initialize_database_if_needed() -> None:
+    """Create and seed the development database when auto-init is enabled."""
+    if not AUTO_INIT_DB:
+        logger.info("Database auto-initialization disabled.")
+        return
 
-    init_db.create_starting_point_db(SessionLocal())
+    session = SessionLocal()
+    try:
+        try:
+            user: UserInfo | None = session.query(UserInfo).first()
+            if user is not None:
+                logger.info("user found %s", user.name)
+                return
+        except Exception:
+            logger.warning("Database schema not initialized, creating tables now.")
+            Base.metadata.create_all(bind=dbengine)
+        else:
+            logger.warning("Database has no users, seeding starting data now.")
+
+        from . import init_db
+
+        init_db.create_starting_point_db(session)
+        logger.info("Database initialized with starting data.")
+    finally:
+        session.close()
+
+
+initialize_database_if_needed()
 
 
 # Database access dependency

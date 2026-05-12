@@ -142,6 +142,7 @@ db_jaegger
 ~$*
 .venv
 devdb
+devdb.sqlite
 .vscode/launch.json
 
 
