@@ -2,8 +2,8 @@
 name: evol
 description: >-
   Facilitates structured Q&A to author PP Network evolution documents under
-  `.evolution/` (versioned markdown). Grounds proposals in this repo's FastAPI,
-  DB, and Textual client architecture so changes stay testable and coherent.
+  `.evolution/` (versioned markdown). Grounds proposals in this repo's FastAPI
+  and DB architecture so changes stay testable and coherent.
   Use when discussing design proposals, roadmaps, architecture changes, or
   creating/updating evolution docs.
 compatibility: opencode
@@ -32,7 +32,6 @@ advice and keep proposals aligned with PP:
 | [`ppback/main.py`](../../../ppback/main.py) | Current API routes, auth deps, websocket flow |
 | [`ppback/db/ppdb_schemas.py`](../../../ppback/db/ppdb_schemas.py) and [`ppback/db/dbfuncs.py`](../../../ppback/db/dbfuncs.py) | Data model and persistence behavior |
 | [`tests/conftest.py`](../../../tests/conftest.py) and API tests in [`tests/`](../../../tests/) | Current behavior contract and fixture assumptions |
-| [`pp_ascii/textualpp.py`](../../../pp_ascii/textualpp.py) | TUI backend contract expectations |
 
 Skim other touched files as needed; stay anchored to existing conventions.
 
@@ -82,7 +81,7 @@ Cover these lenses across the session:
 | Lens | Challenge |
 |------|-----------|
 | **Functionality** | Exact route/schema/behavior changes and affected users/clients |
-| **Compatibility** | Backwards compatibility for `/token`, JWT payload, `/ws` handshake, and TUI expectations |
+| **Compatibility** | Backwards compatibility for `/token`, JWT payload, and `/ws` handshake |
 | **Technical design** | FastAPI deps, DB helpers, migrations, and websocket socket-tracking impacts |
 | **Testability** | Unit/API coverage, fixture updates, websocket and auth regression checks |
 | **Complexity** | Scope sizing, phased rollout, and rollback options |
@@ -109,13 +108,12 @@ Only commit or create branches when the user explicitly requests git actions.
   token JSON.
 - If DB schema changes, include SQLAlchemy model updates, migration updates,
   and `init_db` implications.
-- If API contracts change, include TUI updates (`PPN_HOST`/`PPN_WSHOST` usage)
-  and docker/env notes when relevant.
+- If API contracts change, include docker/env notes when relevant.
 - Prefer incremental, test-backed slices over broad rewrites.
 
 ## Anti-patterns
 
-- Proposing architecture detached from current FastAPI + SQLAlchemy + Textual stack.
+- Proposing architecture detached from current FastAPI + SQLAlchemy stack.
 - Defining goals without validation steps in tests.
 - Ignoring auth/ws coupling while modifying user/conversation/message flows.
 - Changing DB shape without mentioning Alembic or fixture impact.
@@ -126,6 +124,6 @@ Only commit or create branches when the user explicitly requests git actions.
 - [ ] README and AGENTS context read for touched areas.
 - [ ] Entry mode and target file confirmed.
 - [ ] All template sections filled or marked N/A with rationale.
-- [ ] Auth, websocket, DB migration, and TUI contract impacts considered.
+- [ ] Auth, websocket, and DB migration impacts considered.
 - [ ] Test plan includes affected API and/or websocket behavior.
 - [ ] File saved under `.evolution/` with repo-consistent naming.

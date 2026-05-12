@@ -195,10 +195,6 @@ async def create_conv(current_user_id: Annotated[int, Depends(decode_token)],
         user = await hook_user(session, user_id)
         if user is None:
             raise HTTPException(status_code=400, detail=f"User with id {user_id} does not exist.")
-        if not isinstance(user, UserInfo):
-            user = UserInfo.from_dict(
-                user
-            )  # in case the cache return a dict instead of an object
         users.append(user)
     
     # create the conversation
@@ -318,10 +314,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
             session.close()
         if user is None:
             raise ValueError("websocket token references an unknown user")
-        if not isinstance(user, UserInfo):
-            user = UserInfo.from_dict(
-                user
-            )  # in case the cache returns a dict instead of an object
         user_name = user.name
         logger.info("websocket authenticated user %s", user_name)
         if not inmemsockets.can_add_user(user_id):

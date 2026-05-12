@@ -62,9 +62,9 @@ def create_convo(session: Session,
  
 
 @cache(300, key_builder=key_builder )
-async def get_conversation_list_for_user(
+async def _get_conversation_list_for_user_cached(
     session_builder: AsyncGenerator[Session, Session], user_id: int
-) -> ConversationList:
+) -> Dict[str, Any]:
     """Get a list of conversations for a specific user."""
     logger.debug(f"Fetching conversations for user {user_id}")
     with tracer.start_as_current_span("get_conversation_list_for_user_db"):
@@ -85,10 +85,15 @@ async def get_conversation_list_for_user(
                     .all()
                 )
             ]
-            conversations.append(ConversationItem(id=c.id, 
-                                                  label=c.label,
-                                                  members=members))
-        return ConversationList(conversations=conversations)
+            conversations.append(ConversationItem(id=c.id, label=c.label, members=members).model_dump())
+        return {"conversations": conversations}
+
+
+async def get_conversation_list_for_user(
+    session_builder: AsyncGenerator[Session, Session], user_id: int
+) -> ConversationList:
+    cached_value = await _get_conversation_list_for_user_cached(session_builder, user_id)
+    return ConversationList.model_validate(cached_value)
 
 
 @cache(300, key_builder=key_builder)
@@ -108,11 +113,16 @@ def membersof(session: Session, convo_id: int) -> List[Dict]:
 
 
 @cache(300, key_builder=key_builder)
-async def hook_user(session: Session, uid: int) -> UserInfo | None:
+async def _hook_user_cached(session: Session, uid: int) -> Dict[str, Any] | None:
     """Fetch a user by ID."""
     with tracer.start_as_current_span("hook_user_db"):
         user: UserInfo = session.query(UserInfo).filter(UserInfo.id == uid).first()
-        return user
+        return None if user is None else user.to_dict()
+
+
+async def hook_user(session: Session, uid: int) -> UserInfo | None:
+    cached_value = await _hook_user_cached(session, uid)
+    return None if cached_value is None else UserInfo.from_dict(cached_value)
 
 
 @cache(300, key_builder=key_builder)

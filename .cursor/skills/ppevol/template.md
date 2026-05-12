@@ -24,8 +24,7 @@ One paragraph: what changes, who is affected, and why now.
   links to code paths.
 - Problem or limitation in current behavior.
 - Why now (bug risk, feature need, operational pain, or UX friction).
-- Constraints from current architecture (FastAPI auth, websocket flow, DB setup,
-  TUI coupling).
+- Constraints from current architecture (FastAPI auth, websocket flow, DB setup).
 
 ## Goals
 
@@ -39,7 +38,6 @@ Explicit boundaries and deferred work.
 
 - API and behavior changes users will notice.
 - Breaking vs additive changes; migration notes if needed.
-- TUI-visible changes if any.
 
 ## Technical approach
 
@@ -53,7 +51,6 @@ Explicit boundaries and deferred work.
   - `ppback/db/ppdb_schemas.py`
   - `ppback/db/dbfuncs.py`
   - `alembic/versions/*` (if schema changes)
-  - `pp_ascii/textualpp.py` (if client behavior changes)
 
 ## Auth and websocket compatibility
 
@@ -72,7 +69,7 @@ Explicit boundaries and deferred work.
 - API integration tests to add/update (`tests/test_api_users.py`,
   `tests/test_api_convs.py`, and `tests/conftest.py` when needed).
 - Websocket flow validation strategy.
-- Manual smoke checks (backend run + TUI run) if relevant.
+- Manual smoke checks (backend run) if relevant.
 
 ## Complexity and rollout
 
