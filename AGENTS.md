@@ -6,7 +6,6 @@ Short, repo-specific notes for OpenCode agents working in this project.
 
 - Backend API: FastAPI app in `ppback/main.py` (auth, `/users`, `/conv`, `/usermsg`, `/ws`).
 - DB layer: SQLAlchemy models and helpers in `ppback/db/ppdb_schemas.py` and `ppback/db/dbfuncs.py`, with Alembic migrations in `alembic/versions/`.
-- TUI client: Textual app in `pp_ascii/textualpp.py` (and mirrored under `src/pp_ascii/`).
 - Tracing & logging: OpenTelemetry setup in `ppback/init_tracing.py`, logging config in `ppback/logging_config.py`.
 
 For a higher-level evolution guide, see `SKILL.md`.
@@ -22,7 +21,7 @@ For a higher-level evolution guide, see `SKILL.md`.
   - `python -m ppback.init_db`
 - Run tests:
   - `pytest`
-- Compose stack (Postgres + backend + TUI SSH + Godot + Jaeger):
+- Compose stack (Postgres + backend + Jaeger):
   - `docker compose build`
   - `docker compose up -d`
 
@@ -50,15 +49,7 @@ For a higher-level evolution guide, see `SKILL.md`.
 - WebSocket `/ws` currently performs a custom auth handshake:
   - Accepts the connection first, then expects a JSON message within 5 seconds containing `{"token": "<jwt>"}`.
   - On success, user sockets are tracked via `InMemSockets` in `ppback/wsocket.py` and used by `/usermsg` broadcasts.
-- If you change authentication, you must keep this token handshake and the HTTP `/token` endpoint aligned, and update any TUI or other WS clients.
-
-## TUI & Clients
-
-- Textual TUI connects to the HTTP and WS backends using env vars:
-  - `PPN_HOST` (HTTP base URL), `PPN_WSHOST` (WS URL).
-- Docker `sshsrv` service runs the TUI over SSH:
-  - Exposes port `2222`; TUI uses backend service hostnames via `PPN_HOST=http://backend:8000/`, `PPN_WSHOST=ws://backend:8000/`.
-- If you change routes, auth flows, or WS protocol, adjust `pp_ascii/textualpp.py` and docker env accordingly.
+- If you change authentication, keep this token handshake and the HTTP `/token` endpoint aligned for all websocket clients.
 
 ## Coding Conventions
 

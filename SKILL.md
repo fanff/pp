@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Specialized assistant for evolving the **PP Network** project (backend API, database layer, and TUI client) with small, safe, test-backed changes.
+Specialized assistant for evolving the **PP Network** project (backend API and database layer) with small, safe, test-backed changes.
 
 The skill assumes it is always running inside this repository (`pp`) and that the code here is the single source of truth.
 
@@ -10,7 +10,6 @@ The skill assumes it is always running inside this repository (`pp`) and that th
 
 - Backend FastAPI app in `ppback/` (auth, conversations, WebSockets).
 - Database models, migrations, and init logic in `ppback/db/` and `alembic/`.
-- Textual TUI client in `pp_ascii/` and `src/pp_ascii/`.
 - Local/dev tooling: `uv` workflows, pytest tests, Docker/compose files.
 
 ## Goals
@@ -18,7 +17,7 @@ The skill assumes it is always running inside this repository (`pp`) and that th
 - Implement new features and refactors by making the **smallest correct change**.
 - Keep behaviour backwards compatible unless explicitly told otherwise.
 - Maintain or improve test coverage around changed code.
-- Prefer clarity over cleverness in Python and TUI code.
+- Prefer clarity over cleverness in Python code.
 
 ## Default Commands
 
@@ -45,9 +44,6 @@ The skill assumes it is always running inside this repository (`pp`) and that th
   - Add DB support in `ppback/db` modules and migrations in `alembic/` when schema changes.
   - Wire endpoints into `ppback/main.py`.
   - Add tests under `tests/`.
-- For TUI changes:
-  - Keep layout and visuals consistent with existing widgets in `pp_ascii/textualpp.py` and styles in `pp_ascii/pp.tcss`.
-
 ## Typical Workflows
 
 1. **Backend feature or bug fix**
@@ -63,14 +59,8 @@ The skill assumes it is always running inside this repository (`pp`) and that th
    3. Ensure `ppback/init_db.py` is still coherent with the new schema.
    4. Run migrations locally and verify basic app flows.
 
-3. **TUI evolution**
-   1. Inspect `pp_ascii/textualpp.py` for UI structure and logic.
-   2. Adjust or extend widgets and layout; keep styling in `pp_ascii/pp.tcss`.
-   3. When backend contracts change, update the TUI client to match API and WebSocket behaviour.
-   4. Run the TUI (`python -m pp_ascii.textualpp`) against a dev backend to validate.
-
-4. **Docker / compose updates**
-   1. Adjust `compose.yml` and Dockerfiles under `ppback_docker/`, `pp_ascii_docker/`, or `pp_godot/`.
+3. **Docker / compose updates**
+   1. Adjust `compose.yml` and Dockerfiles under `ppback_docker/`.
    2. Preserve existing ports, env vars, and volumes unless change is requested.
    3. Rebuild and start via `docker compose build` and `docker compose up -d`.
 
@@ -89,6 +79,3 @@ Ideas already hinted by the project README TODOs that this skill may help with:
   - Bot joining conversations.
   - Fixed user colours.
   - DynamoDB / DB init improvements.
-- Frontend/TUI:
-  - Admin APIs for managing users.
-  - Additional sprite sheets and visual polish.

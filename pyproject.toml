@@ -19,7 +19,6 @@ dependencies = [
     "pyjwt>=2.10.1",
     "python-multipart>=0.0.20",
     "sqlalchemy>=2.0",
-    "textual>=6.0.0",
     "uvicorn>=0.35.0",
     "websockets>=16.0",
 ]
@@ -28,8 +27,8 @@ dependencies = [
 dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
+    "locust>=2.38.0",
     "pre-commit>=4.2.0",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
-    "textual-dev>=1.7.0",
 ]

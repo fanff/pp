@@ -16,3 +16,19 @@ async def test_get_conversations(client):
     assert len(data) == 2
     assert data[0]["label"] == "general"
     assert data[1]["label"] == "a_and_b"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_keeps_creator_in_members(client):
+    client, (alice_token, _bob_token, _charlie_token) = client
+
+    response = client.post(
+        "/conv",
+        headers={"Authorization": f"Bearer {alice_token}"},
+        json={"label": "cache_type_conv", "members": [2]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["label"] == "cache_type_conv"
+    assert sorted(data["members"]) == [1, 2]

@@ -2,16 +2,15 @@
 
 ## Overview
 
-PP Network is a lightweight conversational platform built around a FastAPI backend, SQLAlchemy data models, and a Textual-based terminal UI client. It supports authenticated users, multi-user conversations, HTTP message history, and real-time updates over WebSockets.
+PP Network is a lightweight conversational platform built around a FastAPI backend and SQLAlchemy data models. It supports authenticated users, multi-user conversations, HTTP message history, and real-time updates over WebSockets.
 
 ## Repository Structure
 
 - `ppback/`: backend API, auth, WebSocket handling, tracing, and logging.
 - `ppback/db/`: SQLAlchemy models, DB helpers, and connection helpers.
-- `pp_ascii/` and `src/pp_ascii/`: Textual TUI client implementation.
 - `tests/`: API tests and fixtures.
 - `alembic/`: migration config and versioned migration scripts.
-- `compose.yml`: local multi-service stack (backend, Postgres, SSH TUI container, Godot client, Jaeger).
+- `compose.yml`: local multi-service stack (backend, Postgres, Jaeger).
 
 ## Tech Stack
 
@@ -20,7 +19,6 @@ PP Network is a lightweight conversational platform built around a FastAPI backe
 - SQLAlchemy
 - Alembic
 - JWT auth (`pyjwt`)
-- Textual (TUI)
 - OpenTelemetry
 - Docker Compose (optional local stack)
 
@@ -50,14 +48,6 @@ python -m ppback.init_db
 pytest
 ```
 
-### Run TUI Client Locally
-
-```bash
-export PPN_HOST="http://localhost:8000/"
-export PPN_WSHOST="ws://localhost:8000/"
-python -m pp_ascii.textualpp
-```
-
 ## Docker Compose
 
 Build and start all configured services:
@@ -71,8 +61,6 @@ Main exposed ports:
 
 - `8000`: backend API
 - `5432`: Postgres
-- `2222`: SSH service for TUI container
-- `8080`: Godot web service
 - `16686`: Jaeger UI
 
 ## Configuration
@@ -83,11 +71,6 @@ Important environment variables used by the backend (`ppback/main.py`):
 - `DB_SESSION_STR`: SQLAlchemy DB URL (default: `sqlite:///devdb.sqlite`).
 - `CORS_ORIGIN_STR`: comma-separated allowed origins (default: `*`).
 - `TRACING_ENDPOINT`: enables OTLP tracing when set.
-
-Client-related environment variables:
-
-- `PPN_HOST`: HTTP API base URL for TUI.
-- `PPN_WSHOST`: WebSocket base URL for TUI.
 
 ## API Summary
 
