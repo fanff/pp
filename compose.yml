@@ -1,6 +1,19 @@
 services:
 
 
+  migrate:
+    build:
+      context: .
+      dockerfile: ./ppback_docker/Dockerfileback
+    command: uv run alembic upgrade head
+    environment:
+      - DB_SESSION_STR=postgresql://myuser:mypassword@postgres:5432/mydatabase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+
   # backend chat conversation
   backend:
     build:
@@ -18,6 +31,11 @@ services:
       - DB_SESSION_STR=postgresql://myuser:mypassword@postgres:5432/mydatabase
       - TRACING_ENDPOINT=http://jaeger:4318/v1/traces
       - CORS_ORIGIN_STR=http://localhost:8080,http://127.0.0.1:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   postgres:
     image: postgres:latest
