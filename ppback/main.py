@@ -220,9 +220,10 @@ async def get_messages(
     conversation_id: int,
     current_user_id: Annotated[int, Depends(decode_token)],
     limit: int = 1000,
+    after: int | None = None,
 ) -> List[MessageSchema]:
     """
-    Retreive all last messages of a single conversation. Sorted by timestamp
+    Retreive messages of a single conversation, optionally after a change cursor.
 
     """
     with tracer.start_as_current_span("privacy_check"):
@@ -233,7 +234,7 @@ async def get_messages(
     if privacycheck:
         session: Session = await anext(get_db())
         with tracer.start_as_current_span("read_conv_db"):
-            results = (
+            query = (
                 session.query(Convchanges)
                 .join(ConvoMessage, Convchanges.change_id == ConvoMessage.id)
                 .filter(
@@ -241,6 +242,12 @@ async def get_messages(
                     & (Convchanges.change_type == "message")
                 )
                 .options(joinedload(Convchanges.convo_message))
+            )
+            if after is not None:
+                query = query.filter(Convchanges.id > after)
+
+            results = (
+                query
                 .order_by(Convchanges.ts.desc())
                 .limit(limit)
                 .all()
@@ -251,6 +258,8 @@ async def get_messages(
             for result in reversed(results):
                 ms = MessageSchema(
                     id=result.id,
+                    change_id=result.id,
+                    message_id=result.convo_message.id,
                     content=result.convo_message.content,
                     sender=result.convo_message.sender_id,
                     ts=result.ts,
@@ -296,24 +305,28 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
             await websocket.close()
             return
 
-        logger.info(
-            "got data , %s", data
-        )  # not logging data, because it contains the secure token of the user
+        logger.info("got websocket auth packet from %s", websocket.client)
         pld = json.loads(data["text"])["token"]
         token = pld
 
-        logger.info("got token %s ", token)
-        session = await anext(get_db())
-        user_id = await decode_token(token)  # this raise exception if failed
-        user = await hook_user(session, user_id)  # this raise exception if failed
+        logger.info("got websocket auth token from %s", websocket.client)
+        user_id = await decode_token(token)  # this raises an exception if failed
+        session = SessionLocal()
+        try:
+            user = await hook_user(session, user_id)  # this raises an exception if failed
+        finally:
+            session.close()
+        if user is None:
+            raise ValueError("websocket token references an unknown user")
         if not isinstance(user, UserInfo):
             user = UserInfo.from_dict(
                 user
-            )  # in case the cache return a dict instead of an object
+            )  # in case the cache returns a dict instead of an object
         user_name = user.name
-        logger.info("got user %s ", user_name)
+        logger.info("websocket authenticated user %s", user_name)
         if not inmemsockets.can_add_user(user_id):
             await websocket.close()
+            return
 
         idx = inmemsockets.add_user(user_id, websocket)
 
@@ -371,6 +384,9 @@ async def new_msg(
                 change_id=conversation_message_id,
             )
             session.add(cc)
+            session.flush()
+            session.refresh(cc)
+            change_id = cc.id
             # Commit both objects in a single transaction
             session.commit()
 
@@ -381,9 +397,8 @@ async def new_msg(
         
         await inmemsockets.broadcast_message_to_users(
             current_user_id, convo_id, usersto_send, conversation_message_id ,
-             msg_time,
-              msg.content
+            change_id, msg_time,
         )
-        return {"status": "ok", "messageid": conversation_message_id}
+        return {"status": "ok", "messageid": conversation_message_id, "change_id": change_id}
 
     raise HTTPException(400, detail="error posting message")
