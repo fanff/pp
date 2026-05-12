@@ -1,28 +1,33 @@
-import os
+import asyncio
 
-from ppback.db.db_connect import create_session
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+
 from ppback.db.dbfuncs import add_users, create_convo
 from ppback.db.ppdb_schemas import Base
 
 
-def create_starting_point_db(session):
-
+async def create_starting_point_db(session: AsyncSession):
     users = [("admin", "admin"), ("user", "user")]
-    users = add_users(session, users)
+    users = await add_users(session, users)
 
-    create_convo(session, "General", users)
-    create_convo(session, "Random", users)
-    create_convo(session, "About", users)
+    await create_convo(session, "General", users)
+    await create_convo(session, "Random", users)
+    await create_convo(session, "About", users)
 
 
-def init_db(session, engine):
-    Base.metadata.create_all(engine)
+async def init_db(engine: AsyncEngine):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 if __name__ == "__main__":
     from . import main
 
     print("Initializing DB at " + main.DB_SESSION_STR)
-    session, engine = create_session(main.DB_SESSION_STR)
-    init_db(session, engine)
-    create_starting_point_db(session)
+
+    async def _run() -> None:
+        await init_db(main.dbengine)
+        async with main.SessionLocal() as session:
+            await create_starting_point_db(session)
+
+    asyncio.run(_run())
