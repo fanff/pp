@@ -58,10 +58,9 @@ class InMemSockets:
 
     async def broadcast_message_to_users(
         self, from_user_id: int, convo_id, 
-        user_ids: List[int], msg_id:int, ts: float,
-          message: str
+        user_ids: List[int], msg_id:int, change_id: int, ts: float,
     ):
-        """Broadcast a message to users in a conversation."""
+        """Broadcast a message-created control event to conversation members."""
 
         async def t(coros):
             with tracer.start_as_current_span("bcast_gather"):
@@ -71,11 +70,12 @@ class InMemSockets:
             coros = []
 
             message_json_payload = MessageWS(
-                msg_id=msg_id, 
-                convo_id=convo_id, 
-                content=message, 
-                originator_id=from_user_id,
-                ts=ts
+                conversation_id=convo_id,
+                change_id=change_id,
+                message_id=msg_id,
+                sender_id=from_user_id,
+                ts=ts,
+                watermark=change_id,
             ).model_dump_json()
             for websocket in self.get_sockets_for_many(user_ids):
                 coros.append(websocket.send_text(message_json_payload))

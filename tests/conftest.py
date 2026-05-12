@@ -2,6 +2,10 @@
 
 import os
 import time
+
+os.environ["DB_SESSION_STR"] = "sqlite:////tmp/pp-test.sqlite"
+os.environ["PPBACK_AUTO_INIT_DB"] = "0"
+
 from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +24,8 @@ def client():
     # In this case, it's using the SQLite database (you could modify for any other db)
     engine_test = create_engine(DB_SESSION_STR, connect_args={"check_same_thread": False})
 
-    # Ensure that tables are created for the test
+    # Ensure that tables are cleanly recreated for the test
+    Base.metadata.drop_all(bind=engine_test)
     Base.metadata.create_all(bind=engine_test)
     # Create a session using your app's sessionmaker (SessionLocal is assumed from app config)
     # We won’t be managing the session directly; the app will use it.
@@ -32,8 +37,8 @@ def client():
     user_bob = add_users(db, [["bob", "testpassword"]])[0]
     user_charlie = add_users(db, [["charlie", "testpassword"]])[0]
 
-    create_convo(db, "general", [user_alice.id, user_bob.id, user_charlie.id])
-    create_convo(db, "a_and_b", [user_alice.id, user_bob.id])
+    create_convo(db, "general", [user_alice, user_bob, user_charlie])
+    create_convo(db, "a_and_b", [user_alice, user_bob])
     db.close()
 
     client = TestClient(app)

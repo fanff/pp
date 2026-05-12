@@ -10,7 +10,7 @@ async def test_get_conversations(client):
     assert response.status_code == 200
 
     # Optionally, assert that the response body is a list (if that's expected)
-    data = response.json()
+    data = response.json()["conversations"]
     assert isinstance(data, list)
 
     assert len(data) == 2
