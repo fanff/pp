@@ -27,7 +27,7 @@ uv run locust \
   -f benchmarks/locustfile.py \
   --headless \
   --host "$BENCH_HOST" \
-  --summary \
+  --only-summary \
   --csv "$RESULT_DIR/$RUN_ID" \
   > "$RESULT_DIR/$RUN_ID.json"
 
