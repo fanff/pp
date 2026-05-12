@@ -19,7 +19,7 @@ Just ```uv sync``` your virtual environment and run the backend with the followi
 
 ```bash
 
-uvicorn ppback.thedummyAPI:app --reload
+uvicorn ppback.main:app --reload
 
 ```
 

@@ -36,7 +36,25 @@ class MessageSchema(BaseModel):
 # web socket simple schemas
 class MessageWS(BaseModel):
     """Model representing a message in a web service context."""
-
+    msg_id: int
     originator_id: int
     convo_id: int
     content: str
+    ts: float 
+
+class ConversationItem(BaseModel):
+    """Model representing a single conversation item."""
+
+    id: int
+    label: str
+    members: list[int]
+
+class ConversationList(BaseModel):
+    """Model representing a list of conversations for a user."""
+
+    conversations: list[ConversationItem]
+
+class ConversationCreate(BaseModel):
+    """Model representing the data needed to create a new conversation."""
+    label: str
+    members: list[int]

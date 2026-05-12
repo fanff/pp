@@ -6,51 +6,22 @@ Base = declarative_base()
 
 class ConvoMessage(Base):
     __tablename__ = "convomessage"
-    id: int = Column(Integer, primary_key=True, index=True)
-    content: str = Column(
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(
         String,
     )
-    sender_id: int = Column(Integer, ForeignKey("userinfo.id"))
+    sender_id = Column(Integer, ForeignKey("userinfo.id"))
     convchanges = relationship("Convchanges", back_populates="convo_message")
 
-
-# for later use.
-class AgentPatch(Base):
-    __tablename__ = "agent_patches"
-    id: int = Column(Integer, primary_key=True, index=True)
-    profile_name: str = Column(
-        String,
-    )
-    subprofile_name: str = Column(
-        String,
-    )
-
-
-# for later use.
-class ItemAssignement(Base):
-    __tablename__ = "item_assignements"
-    id: int = Column(Integer, primary_key=True, index=True)
-    item_name: str = Column(
-        String,
-    )
-    action: str = Column(
-        String,
-    )  # drop, add, produced
 
 
 class UserInfo(Base):
     __tablename__ = "userinfo"
-    id: int = Column(Integer, primary_key=True, index=True)
-    name: str = Column(String, unique=True, index=True)
-    email: str = Column(
-        String,
-    )
-    nickname: str = Column(
-        String,
-    )
-    salted_password: str = Column(
-        String,
-    )
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    email = Column(String)
+    nickname = Column(String)
+    salted_password = Column(String)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -63,10 +34,10 @@ class UserInfo(Base):
 class ConvPrivacyMembers(Base):
     __tablename__ = "conv_privacy_members"
     __table_args__ = (UniqueConstraint("conv_id", "user_id", name="conv_user_uc"),)
-    id: int = Column(Integer, primary_key=True, index=True)
-    conv_id: int = Column(Integer, ForeignKey("conversations.id"))
-    user_id: int = Column(Integer, ForeignKey("userinfo.id"))
-    role: str = Column(
+    id = Column(Integer, primary_key=True, index=True)
+    conv_id = Column(Integer, ForeignKey("conversations.id"))
+    user_id = Column(Integer, ForeignKey("userinfo.id"))
+    role = Column(
         String,
         default="member",
     )
@@ -77,29 +48,27 @@ class ConvPrivacyMembers(Base):
 
 class ConvStartingPoint(Base):
     __tablename__ = "conv_starting_points"
-    id: int = Column(Integer, primary_key=True, index=True)
-    parent_id: int = Column(Integer, ForeignKey("conversations.id"))
-    parent_ts: int = Column(Float)
+    id = Column(Integer, primary_key=True, index=True)
+    parent_id = Column(Integer, ForeignKey("conversations.id"))
+    parent_ts = Column(Float)
 
 
 class Conv(Base):
     __tablename__ = "conversations"
-    id: int = Column(Integer, primary_key=True, index=True)
-    label: str = Column(
+    id = Column(Integer, primary_key=True, index=True)
+    label = Column(
         String,
     )
-    parent_id: int = Column(Integer, ForeignKey("conversations.id"), nullable=True)
-    parent_ts: int = Column(Float, nullable=True)
+    parent_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
+    parent_ts = Column(Float, nullable=True)
 
 
 class Convchanges(Base):
     __tablename__ = "convchanges"
-    id: int = Column(Integer, primary_key=True, index=True)
-    ts: float = Column(Float)  # time stamps seconds
-    conv_id: int = Column(Integer, ForeignKey("conversations.id"))
-    change_type: str = Column(
-        String,
-    )
+    id = Column(Integer, primary_key=True, index=True)
+    ts = Column(Float)  # time stamps seconds
+    conv_id = Column(Integer, ForeignKey("conversations.id"))
+    change_type = Column(String)
     change_id = Column(Integer, ForeignKey("convomessage.id"))
     convo_message = relationship(
         "ConvoMessage", back_populates="convchanges", uselist=False

@@ -57,7 +57,9 @@ class InMemSockets:
         return res
 
     async def broadcast_message_to_users(
-        self, from_user_id: int, convo_id, user_ids: List[int], message: str
+        self, from_user_id: int, convo_id, 
+        user_ids: List[int], msg_id:int, ts: float,
+          message: str
     ):
         """Broadcast a message to users in a conversation."""
 
@@ -69,7 +71,11 @@ class InMemSockets:
             coros = []
 
             message_json_payload = MessageWS(
-                convo_id=convo_id, content=message, originator_id=from_user_id
+                msg_id=msg_id, 
+                convo_id=convo_id, 
+                content=message, 
+                originator_id=from_user_id,
+                ts=ts
             ).model_dump_json()
             for websocket in self.get_sockets_for_many(user_ids):
                 coros.append(websocket.send_text(message_json_payload))

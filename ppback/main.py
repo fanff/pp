@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, joinedload, sessionmaker
 
 from ppback.db.dbfuncs import (
     allusers,
+    create_convo,
     get_conversation_list_for_user,
     hook_user,
     membersof,
@@ -28,7 +29,7 @@ from ppback.db.dbfuncs import (
 from ppback.db.ppdb_schemas import Convchanges, ConvoMessage, UserInfo
 from ppback.init_tracing import global_tracing_setup
 from ppback.logging_config import setup_logging
-from ppback.ppschema import MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
+from ppback.ppschema import ConversationCreate, ConversationItem, ConversationList, MessageSchema, MessageWS, MsgInputSchema, MsgOutputSchema
 from ppback.secu.sec_utils import check_password
 from ppback.wsocket import InMemSockets
 
@@ -59,9 +60,9 @@ tracer = trace.get_tracer(__name__)
 # getting the host name of the machine
 HOSTNAME = os.getenv("HOSTNAME", "localhost")
 
-MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydumykey")
-DB_SESSION_STR = os.getenv("DB_SESSION_STR", "sqlite:///devdb/chat_database.db")
-CORS_ORIGIN_STR = os.getenv("CORS_ORIGIN_STR", "")  # comma delimited list of domains
+MASTER_SECRET_KEY = os.getenv("MASTER_SECRET_KEY", "mydummykey")
+DB_SESSION_STR = os.getenv("DB_SESSION_STR", "sqlite:///devdb.sqlite")
+CORS_ORIGIN_STR = os.getenv("CORS_ORIGIN_STR", "*")  # comma delimited list of domains
 
 if CORS_ORIGIN_STR != "":
     origins = CORS_ORIGIN_STR.split(",")
@@ -90,12 +91,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=dbengine)
 # test if the database is intialized by trying to query it. If it fails, initialize it.
 try:
     session = SessionLocal()
-    session.query(UserInfo).first()
+    user:UserInfo = session.query(UserInfo).first()
+    if user is None:
+        raise Exception("create db")
+    logger.info("user found %s",user.name)
 except Exception as e:
     logger.warning("Database not initialized, initializing now.")
     from . import init_db
 
-    init_db.init_db(SessionLocal(), dbengine)
     init_db.create_starting_point_db(SessionLocal())
 
 
@@ -125,9 +128,9 @@ async def decode_token(token: Annotated[str, Depends(oauth2_scheme)]) -> int:
 @app.post("/token")
 async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    session: Session = Depends(get_db),
+    session: Annotated[Session ,Depends(get_db)],
 ):
-
+    logger.info("user login %s", form_data.username)
     # find user information in db
     user_info = (
         session.query(UserInfo).filter(UserInfo.name == form_data.username).first()
@@ -138,8 +141,8 @@ async def login(
     passcheck = check_password(form_data.password, user_info.salted_password)
 
     if not passcheck:
+        logger.info("Password fail")
         raise HTTPException(status_code=400, detail="Incorrect username or password.")
-
     # should improve with a signature or something
     token = jwt.encode(
         payload={"user_id": user_info.id},
@@ -156,18 +159,44 @@ async def list_users(
     with tracer.start_as_current_span("all_users_in_db"):
         return await allusers(get_db)
 
+@app.post("/conv")
+async def create_conv(current_user_id: Annotated[int, Depends(decode_token)], 
+                      new_conv_data: ConversationCreate) -> ConversationItem:
+    """Create a new conversation with the given label and members."""
+    session: Session = await anext(get_db())
+
+    # check if the user is trying to add himself in the conversation, if not add him.
+    if current_user_id not in new_conv_data.members:
+        new_conv_data.members.append(current_user_id)
+    logger.info("adding users %s to new convo",new_conv_data.members )
+    # get the user objects for the members
+    users = []
+    for user_id in new_conv_data.members:
+        user = await hook_user(session, user_id)
+        if user is None:
+            raise HTTPException(status_code=400, detail=f"User with id {user_id} does not exist.")
+        if not isinstance(user, UserInfo):
+            user = UserInfo.from_dict(
+                user
+            )  # in case the cache return a dict instead of an object
+        users.append(user)
+    
+    # create the conversation
+    new_id, lab = create_convo(session, new_conv_data.label, users)
+    return ConversationItem(id=new_id, label=lab, members=new_conv_data.members)
+
 
 @app.get("/conv")
 async def list_conv(
     current_user_id: Annotated[int, Depends(decode_token)],
-):
+) -> ConversationList:
     """List the conversations accessible to the user."""
     logger.info("Fetching conversations for user %s", current_user_id)
-    return await get_conversation_list_for_user(get_db, current_user_id)
+    convlist = await get_conversation_list_for_user(get_db, current_user_id)
+    return convlist
 
-
-@app.get("/conv/{conversation_id}")
-async def getconv(
+@app.get("/conv/{conversation_id}/messages", response_model=List[MessageSchema])
+async def get_messages(
     conversation_id: int,
     current_user_id: Annotated[int, Depends(decode_token)],
     limit: int = 1000,
@@ -210,6 +239,7 @@ async def getconv(
 
         return all_results
     else:
+        logger.warning("User %s is not allowed to access conversation %s", current_user_id, conversation_id)
         raise HTTPException(status_code=500, detail="error fetching conversation.")
 
 
@@ -229,14 +259,6 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
     #     await websocket.close()
     #     raise e
 
-    ## check the token before accepting the websocket
-    # token = websocket.headers.get("Authorization")
-    ## if token is not valid, reject the websocket
-    # if not token:
-    #    await websocket.close()
-    #    return
-    #
-
     # accept the connection
     await websocket.accept()
 
@@ -249,14 +271,18 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
             data = await asyncio.wait_for(websocket.receive(), timeout=5)
         except asyncio.TimeoutError:
             # no packet ?!  bye bye
+            logger.warning("no data received in time, closing websocket connection from %s", websocket.client)
+
             await websocket.close()
             return
 
         logger.info(
-            "got data , %s", len(data)
+            "got data , %s", data
         )  # not logging data, because it contains the secure token of the user
-        pld = json.loads(data["bytes"])
-        token = pld[1].split(" ")[-1]
+        pld = json.loads(data["text"])["token"]
+        token = pld
+
+        logger.info("got token %s ", token)
         session = await anext(get_db())
         user_id = await decode_token(token)  # this raise exception if failed
         user = await hook_user(session, user_id)  # this raise exception if failed
@@ -277,6 +303,8 @@ async def websocket_endpoint(websocket: fastapi.WebSocket):
                 data = await websocket.receive_text()
             except WebSocketDisconnect:
                 logger.warning("dropping user %s ", user_id)
+            except RuntimeError as rerr:
+                logger.warning("dropping user %s due to runtime error %s ", user_id, rerr)
             finally:
                 inmemsockets.drop_user(user_id, idx)
             return
@@ -315,8 +343,9 @@ async def new_msg(
             session.refresh(cm)
             conversation_message_id = cm.id
             # Use the ID of the first object for the second object
+            msg_time = time.time()
             cc = Convchanges(
-                ts=time.time(),
+                ts=msg_time,
                 conv_id=convo_id,
                 change_type="message",
                 change_id=conversation_message_id,
@@ -329,8 +358,11 @@ async def new_msg(
             members = await membersof(session, convo_id)
             usersto_send = [u["user_id"] for u in members]
 
+        
         await inmemsockets.broadcast_message_to_users(
-            current_user_id, convo_id, usersto_send, msg.content
+            current_user_id, convo_id, usersto_send, conversation_message_id ,
+             msg_time,
+              msg.content
         )
         return {"status": "ok", "messageid": conversation_message_id}
 
