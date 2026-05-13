@@ -1,7 +1,5 @@
-
-
+import asyncio
 import os
-import time
 
 os.environ["DB_SESSION_STR"] = "sqlite:////tmp/pp-test.sqlite"
 os.environ["PPBACK_AUTO_INIT_DB"] = "0"
@@ -9,64 +7,61 @@ os.environ["PPBACK_AUTO_INIT_DB"] = "0"
 from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
 from fastapi.testclient import TestClient
-from ppback.main import DB_SESSION_STR, app  # Your FastAPI app
+from ppback.main import SessionLocal, app, dbengine
 from ppback.db.dbfuncs import add_users, create_convo
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 
 
 @pytest.fixture()
 def client():
-    # Connect to the database engine directly from your app configuration
-    # In this case, it's using the SQLite database (you could modify for any other db)
-    engine_test = create_engine(DB_SESSION_STR, connect_args={"check_same_thread": False})
+    async def setup_db() -> None:
+        async with dbengine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+            await conn.run_sync(Base.metadata.create_all)
 
-    # Ensure that tables are cleanly recreated for the test
-    Base.metadata.drop_all(bind=engine_test)
-    Base.metadata.create_all(bind=engine_test)
-    # Create a session using your app's sessionmaker (SessionLocal is assumed from app config)
-    # We won’t be managing the session directly; the app will use it.
-    SessionLocalTest = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
-    db = SessionLocalTest()
+        async with SessionLocal() as db:
+            user_alice = (await add_users(db, [["alice", "testpassword"]]))[0]
+            user_bob = (await add_users(db, [["bob", "testpassword"]]))[0]
+            user_charlie = (await add_users(db, [["charlie", "testpassword"]]))[0]
 
-    # create a test users and conversations
-    user_alice = add_users(db, [["alice", "testpassword"]])[0]
-    user_bob = add_users(db, [["bob", "testpassword"]])[0]
-    user_charlie = add_users(db, [["charlie", "testpassword"]])[0]
+            await create_convo(db, "general", [user_alice, user_bob, user_charlie])
+            await create_convo(db, "a_and_b", [user_alice, user_bob])
 
-    create_convo(db, "general", [user_alice, user_bob, user_charlie])
-    create_convo(db, "a_and_b", [user_alice, user_bob])
-    db.close()
+    async def teardown_db() -> None:
+        async with dbengine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+
+    asyncio.run(setup_db())
+
+    cache_backend = InMemoryBackend()
+    FastAPICache.reset()
+    FastAPICache.init(cache_backend, prefix="fastapi-cache")
 
     client = TestClient(app)
-    cache_backend = InMemoryBackend()
-    FastAPICache.init(cache_backend, prefix="fastapi-cache")
-    alice_token = client.post("/token", data={"username": "alice", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
+    try:
+        alice_token = client.post(
+            "/token",
+            data={"username": "alice", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
 
-    bob_token = client.post("/token", data={"username": "bob", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
+        bob_token = client.post(
+            "/token",
+            data={"username": "bob", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
 
-    charlie_token = client.post("/token", data={"username": "charlie", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
+        charlie_token = client.post(
+            "/token",
+            data={"username": "charlie", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
 
-
-
-    yield client,(alice_token,bob_token,charlie_token)
-    # Teardown: close the client after tests
-    client.close()
-
-    # Teardown: drop the tables after tests
-    Base.metadata.drop_all(bind=engine_test)
+        yield client, (alice_token, bob_token, charlie_token)
+    finally:
+        client.close()
+        FastAPICache.reset()
+        cache_backend._store.clear()
+        asyncio.run(teardown_db())
