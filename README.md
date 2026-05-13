@@ -25,13 +25,9 @@ Run backend locally:
 uvicorn ppback.main:app --reload
 ```
 
-Initialize database when needed:
+The database is auto-initialized on startup (tables created + seeded with default users). No manual init step is needed.
 
-```bash
-python -m ppback.init_db
-```
-
-Default dev credentials include `fanf:fanf` and `ted:ted`.
+Default dev credentials: `admin:admin` and `user:user`.
 
 ## Docker compose
 

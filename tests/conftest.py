@@ -4,15 +4,22 @@ import os
 os.environ["DB_SESSION_STR"] = "sqlite:////tmp/pp-test.sqlite"
 os.environ["PPBACK_AUTO_INIT_DB"] = "0"
 
-from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
 from fastapi.testclient import TestClient
-from ppback.config import SessionLocal, dbengine
-from ppback.main import app
-from ppback.db.dbfuncs import add_users, create_convo
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
+from sqlalchemy import select
 
+from ppback.config import SessionLocal, dbengine
+from ppback.db.dbfuncs import (
+    accept_friend_request,
+    add_users,
+    create_convo,
+    create_invite_code,
+    submit_invite_code,
+)
+from ppback.db.ppdb_schemas import Base, FriendRequest, UserInfo
+from ppback.main import app
 
 
 @pytest.fixture()
@@ -27,8 +34,28 @@ def client():
             user_bob = (await add_users(db, [["bob", "testpassword"]]))[0]
             user_charlie = (await add_users(db, [["charlie", "testpassword"]]))[0]
 
-            await create_convo(db, "general", [user_alice, user_bob, user_charlie])
-            await create_convo(db, "a_and_b", [user_alice, user_bob])
+            await create_convo(
+                db, "general", [user_alice, user_bob, user_charlie],
+                creator_id=user_alice.id,
+            )
+            await create_convo(
+                db, "a_and_b", [user_alice, user_bob],
+                creator_id=user_alice.id,
+            )
+
+            ic = await create_invite_code(db, user_alice.id)
+            await submit_invite_code(db, ic.code, user_bob.id)
+            req = (
+                (await db.execute(
+                    select(FriendRequest).where(
+                        FriendRequest.from_user_id == user_bob.id
+                    )
+                ))
+                .scalars()
+                .first()
+            )
+            if req:
+                await accept_friend_request(db, req.id, user_alice.id)
 
     async def teardown_db() -> None:
         async with dbengine.begin() as conn:
@@ -44,19 +71,31 @@ def client():
     try:
         alice_token = client.post(
             "/token",
-            data={"username": "alice", "password": "testpassword", "grant_type": "password"},
+            data={
+                "username": "alice",
+                "password": "testpassword",
+                "grant_type": "password",
+            },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         ).json()["access_token"]
 
         bob_token = client.post(
             "/token",
-            data={"username": "bob", "password": "testpassword", "grant_type": "password"},
+            data={
+                "username": "bob",
+                "password": "testpassword",
+                "grant_type": "password",
+            },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         ).json()["access_token"]
 
         charlie_token = client.post(
             "/token",
-            data={"username": "charlie", "password": "testpassword", "grant_type": "password"},
+            data={
+                "username": "charlie",
+                "password": "testpassword",
+                "grant_type": "password",
+            },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         ).json()["access_token"]
 

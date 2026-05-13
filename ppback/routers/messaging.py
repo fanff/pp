@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from opentelemetry import trace
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
 
 from ppback.db.dbfuncs import (
     create_convo,
@@ -14,8 +13,9 @@ from ppback.db.dbfuncs import (
     hook_user,
     membersof,
     user_allowed_in_convo,
+    user_can_write_in_convo,
 )
-from ppback.db.ppdb_schemas import Convchanges, ConvoMessage
+from ppback.db.ppdb_schemas import ConvoMessage
 from ppback.deps import decode_token, get_db
 from ppback.ppschema import (
     ConversationCreate,
@@ -39,8 +39,6 @@ async def create_conv(
     new_conv_data: ConversationCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> ConversationItem:
-    """Create a new conversation with the given label and members."""
-
     if current_user_id not in new_conv_data.members:
         new_conv_data.members.append(current_user_id)
     logger.info("adding users %s to new convo", new_conv_data.members)
@@ -55,7 +53,9 @@ async def create_conv(
             )
         users.append(user)
 
-    new_id, lab = await create_convo(session, new_conv_data.label, users)
+    new_id, lab = await create_convo(
+        session, new_conv_data.label, users, creator_id=current_user_id
+    )
     return ConversationItem(id=new_id, label=lab, members=new_conv_data.members)
 
 
@@ -64,7 +64,6 @@ async def list_conv(
     current_user_id: Annotated[int, Depends(decode_token)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ) -> ConversationList:
-    """List the conversations accessible to the user."""
     logger.info("Fetching conversations for user %s", current_user_id)
     convlist = await get_conversation_list_for_user(session, current_user_id)
     return convlist
@@ -78,54 +77,39 @@ async def get_messages(
     limit: int = 1000,
     after: int | None = None,
 ) -> List[MessageSchema]:
-    """
-    Retreive messages of a single conversation, optionally after a change cursor.
-
-    """
     with tracer.start_as_current_span("privacy_check"):
-        privacycheck = await user_allowed_in_convo(session, current_user_id, conversation_id)
+        privacycheck = await user_allowed_in_convo(
+            session, current_user_id, conversation_id
+        )
 
     if privacycheck:
-        with tracer.start_as_current_span("read_conv_db"):
-            query = (
-                select(Convchanges)
-                .join(ConvoMessage, Convchanges.change_id == ConvoMessage.id)
-                .where(
-                    (Convchanges.conv_id == conversation_id)
-                    & (Convchanges.change_type == "message")
-                )
-                .options(joinedload(Convchanges.convo_message))
+        with tracer.start_as_current_span("read_messages_db"):
+            query = select(ConvoMessage).where(
+                ConvoMessage.conv_id == conversation_id
             )
             if after is not None:
-                query = query.where(Convchanges.id > after)
+                query = query.where(ConvoMessage.id > after)
 
             results = (
                 (
-                    await session.execute(query.order_by(Convchanges.ts.desc()).limit(limit))
+                    await session.execute(
+                        query.order_by(ConvoMessage.ts.desc()).limit(limit)
+                    )
                 )
                 .scalars()
                 .all()
             )
 
-        with tracer.start_as_current_span("process_conv_db"):
-            all_results: list[MessageSchema] = []
-            for result in reversed(results):
-                message = result.convo_message
-                if message is None:
-                    logger.warning(
-                        "conversation change %s has no associated message", result.id
-                    )
-                    continue
-
-                ms = MessageSchema(
-                    id=result.id,
-                    change_id=result.id,
-                    message_id=message.id,
-                    content=message.content,
-                    sender=message.sender_id,
-                    ts=result.ts,
-                )
-                all_results.append(ms)
+        all_results: list[MessageSchema] = []
+        for msg in reversed(results):
+            ms = MessageSchema(
+                id=msg.id,
+                content=msg.content,
+                sender=msg.sender_id,
+                message_type=msg.message_type,
+                ts=msg.ts,
+            )
+            all_results.append(ms)
 
         return all_results
 
@@ -143,36 +127,29 @@ async def new_msg(
     current_user_id: Annotated[int, Depends(decode_token)],
     session: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """
-    Endpoint to post a new message to a conversation. This will store it & propagate it to every connected users
+    with tracer.start_as_current_span("privacy_and_rbac_check"):
+        privacycheck = await user_allowed_in_convo(
+            session, current_user_id, msg.conversation_id
+        )
+        canwrite = await user_can_write_in_convo(
+            session, current_user_id, msg.conversation_id
+        )
 
-    Raises:
-        HTTPException: If there is an issue with storing the message.
-    """
-
-    with tracer.start_as_current_span("privacy_check"):
-        privacycheck = await user_allowed_in_convo(session, current_user_id, msg.conversation_id)
-
-    if privacycheck:
+    if privacycheck and canwrite:
         convo_id = msg.conversation_id
-        with tracer.start_as_current_span("store_message_and_changes"):
-            cm = ConvoMessage(content=msg.content, sender_id=current_user_id)
+        with tracer.start_as_current_span("store_message"):
+            msg_time = time.time()
+            cm = ConvoMessage(
+                content=msg.content,
+                sender_id=current_user_id,
+                conv_id=convo_id,
+                ts=msg_time,
+                message_type="text",
+            )
             session.add(cm)
             await session.flush()
             await session.refresh(cm)
-            conversation_message_id = cm.id
-
-            msg_time = time.time()
-            cc = Convchanges(
-                ts=msg_time,
-                conv_id=convo_id,
-                change_type="message",
-                change_id=conversation_message_id,
-            )
-            session.add(cc)
-            await session.flush()
-            await session.refresh(cc)
-            change_id = cc.id
+            message_id = cm.id
             await session.commit()
 
         with tracer.start_as_current_span("find_members_of_convo"):
@@ -183,10 +160,9 @@ async def new_msg(
             current_user_id,
             convo_id,
             usersto_send,
-            conversation_message_id,
-            change_id,
+            message_id,
             msg_time,
         )
-        return {"status": "ok", "messageid": conversation_message_id, "change_id": change_id}
+        return {"status": "ok", "messageid": message_id}
 
     raise HTTPException(400, detail="error posting message")

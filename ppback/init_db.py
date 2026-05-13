@@ -10,9 +10,9 @@ async def create_starting_point_db(session: AsyncSession):
     users = [("admin", "admin"), ("user", "user")]
     users = await add_users(session, users)
 
-    await create_convo(session, "General", users)
-    await create_convo(session, "Random", users)
-    await create_convo(session, "About", users)
+    await create_convo(session, "General", users, creator_id=users[0].id)
+    await create_convo(session, "Random", users, creator_id=users[0].id)
+    await create_convo(session, "About", users, creator_id=users[0].id)
 
 
 async def init_db(engine: AsyncEngine):

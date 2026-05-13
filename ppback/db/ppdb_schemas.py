@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import time
+
 from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -12,12 +15,12 @@ class ConvoMessage(Base):
     __tablename__ = "convomessage"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    conv_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"), index=True)
+    ts: Mapped[float] = mapped_column(Float, index=True)
+    message_type: Mapped[str] = mapped_column(String, default="text", index=True)
     content: Mapped[str] = mapped_column(String)
-    sender_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
-    convchanges: Mapped[list["Convchanges"]] = relationship(
-        "Convchanges", back_populates="convo_message"
-    )
-
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class UserInfo(Base):
@@ -28,6 +31,7 @@ class UserInfo(Base):
     email: Mapped[str] = mapped_column(String)
     nickname: Mapped[str] = mapped_column(String)
     salted_password: Mapped[str] = mapped_column(String)
+    created_at: Mapped[float | None] = mapped_column(Float, default=time.time)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -37,8 +41,8 @@ class UserInfo(Base):
         return cls(**{c.name: data.get(c.name) for c in cls.__table__.columns})
 
 
-class ConvPrivacyMembers(Base):
-    __tablename__ = "conv_privacy_members"
+class ConvMember(Base):
+    __tablename__ = "conv_members"
     __table_args__ = (UniqueConstraint("conv_id", "user_id", name="conv_user_uc"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -67,16 +71,39 @@ class Conv(Base):
         ForeignKey("conversations.id"), nullable=True
     )
     parent_ts: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    updated_at: Mapped[float] = mapped_column(Float, default=time.time, onupdate=time.time)
 
 
-class Convchanges(Base):
-    __tablename__ = "convchanges"
+class InviteCode(Base):
+    __tablename__ = "invite_codes"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    ts: Mapped[float] = mapped_column(Float)
-    conv_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
-    change_type: Mapped[str] = mapped_column(String)
-    change_id: Mapped[int] = mapped_column(ForeignKey("convomessage.id"))
-    convo_message: Mapped[ConvoMessage | None] = relationship(
-        "ConvoMessage", back_populates="convchanges", uselist=False
-    )
+    code: Mapped[str] = mapped_column(String, unique=True, index=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    status: Mapped[str] = mapped_column(String, default="active")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    used_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    used_by_id: Mapped[int | None] = mapped_column(ForeignKey("userinfo.id"), nullable=True)
+
+
+class FriendRequest(Base):
+    __tablename__ = "friend_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    invite_code_id: Mapped[int | None] = mapped_column(ForeignKey("invite_codes.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String, default="pending")
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)
+    updated_at: Mapped[float] = mapped_column(Float, default=time.time, onupdate=time.time)
+
+
+class Friendship(Base):
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("user_a_id", "user_b_id", name="friendship_uc"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_a_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    user_b_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    created_at: Mapped[float] = mapped_column(Float, default=time.time)

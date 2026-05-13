@@ -15,22 +15,15 @@ class InMemSockets:
     """Keeping sockets open, in a global memory object."""
 
     def __init__(self, limit=5):
-        """Initialize the InMemSockets with a limit on concurrent connections."""
-        # This is a list of [user_id, socket, idx]
         self.items: List[Tuple[int, fastapi.WebSocket, int]] = []
-        # limit the number of concurrent connections per user
         self.limit = limit
-        # this is a simple index to give a unique id to each socket
         self.idx = 0
 
     def gen_idx(self):
-        """Generate a new index for the socket."""
         self.idx += 1
         return self.idx
 
     def can_add_user(self, user_id):
-        """Check if a user can add a new socket connection."""
-
         return self.count_for_user(user_id) < self.limit
 
     def add_user(self, user_id, socket) -> int:
@@ -39,7 +32,6 @@ class InMemSockets:
         return idx
 
     def count_for_user(self, user_id):
-        """Count the number of sockets for a given user."""
         return len(self.get_sockets_for(user_id))
 
     def drop_user(self, user_id, idx):
@@ -62,11 +54,8 @@ class InMemSockets:
         convo_id,
         user_ids: List[int],
         msg_id: int,
-        change_id: int,
         ts: float,
     ):
-        """Broadcast a message-created control event to conversation members."""
-
         async def _safe_send(websocket: fastapi.WebSocket, payload: str) -> None:
             try:
                 await asyncio.wait_for(websocket.send_text(payload), timeout=1)
@@ -78,11 +67,9 @@ class InMemSockets:
 
             message_json_payload = MessageWS(
                 conversation_id=convo_id,
-                change_id=change_id,
                 message_id=msg_id,
                 sender_id=from_user_id,
                 ts=ts,
-                watermark=change_id,
             ).model_dump_json()
             for websocket in self.get_sockets_for_many(user_ids):
                 coros.append(_safe_send(websocket, message_json_payload))
@@ -90,9 +77,6 @@ class InMemSockets:
             if coros:
                 with tracer.start_as_current_span("bcast_gather"):
                     await asyncio.gather(*coros, return_exceptions=True)
-
-
-inmemsockets = InMemSockets()
 
 
 inmemsockets = InMemSockets()
