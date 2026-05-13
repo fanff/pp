@@ -1,27 +1,33 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import relationship, declarative_base
+from __future__ import annotations
 
-Base = declarative_base()
+from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class ConvoMessage(Base):
     __tablename__ = "convomessage"
-    id = Column(Integer, primary_key=True, index=True)
-    content = Column(
-        String,
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    content: Mapped[str] = mapped_column(String)
+    sender_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    convchanges: Mapped[list["Convchanges"]] = relationship(
+        "Convchanges", back_populates="convo_message"
     )
-    sender_id = Column(Integer, ForeignKey("userinfo.id"))
-    convchanges = relationship("Convchanges", back_populates="convo_message")
 
 
 
 class UserInfo(Base):
     __tablename__ = "userinfo"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    email = Column(String)
-    nickname = Column(String)
-    salted_password = Column(String)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)
+    email: Mapped[str] = mapped_column(String)
+    nickname: Mapped[str] = mapped_column(String)
+    salted_password: Mapped[str] = mapped_column(String)
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -34,13 +40,11 @@ class UserInfo(Base):
 class ConvPrivacyMembers(Base):
     __tablename__ = "conv_privacy_members"
     __table_args__ = (UniqueConstraint("conv_id", "user_id", name="conv_user_uc"),)
-    id = Column(Integer, primary_key=True, index=True)
-    conv_id = Column(Integer, ForeignKey("conversations.id"))
-    user_id = Column(Integer, ForeignKey("userinfo.id"))
-    role = Column(
-        String,
-        default="member",
-    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    conv_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("userinfo.id"))
+    role: Mapped[str] = mapped_column(String, default="member")
 
     def to_dict(self):
         return {c.name: getattr(self, c.name) for c in self.__table__.columns}
@@ -48,28 +52,31 @@ class ConvPrivacyMembers(Base):
 
 class ConvStartingPoint(Base):
     __tablename__ = "conv_starting_points"
-    id = Column(Integer, primary_key=True, index=True)
-    parent_id = Column(Integer, ForeignKey("conversations.id"))
-    parent_ts = Column(Float)
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    parent_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
+    parent_ts: Mapped[float] = mapped_column(Float)
 
 
 class Conv(Base):
     __tablename__ = "conversations"
-    id = Column(Integer, primary_key=True, index=True)
-    label = Column(
-        String,
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    label: Mapped[str] = mapped_column(String)
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("conversations.id"), nullable=True
     )
-    parent_id = Column(Integer, ForeignKey("conversations.id"), nullable=True)
-    parent_ts = Column(Float, nullable=True)
+    parent_ts: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class Convchanges(Base):
     __tablename__ = "convchanges"
-    id = Column(Integer, primary_key=True, index=True)
-    ts = Column(Float)  # time stamps seconds
-    conv_id = Column(Integer, ForeignKey("conversations.id"))
-    change_type = Column(String)
-    change_id = Column(Integer, ForeignKey("convomessage.id"))
-    convo_message = relationship(
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    ts: Mapped[float] = mapped_column(Float)
+    conv_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"))
+    change_type: Mapped[str] = mapped_column(String)
+    change_id: Mapped[int] = mapped_column(ForeignKey("convomessage.id"))
+    convo_message: Mapped[ConvoMessage | None] = relationship(
         "ConvoMessage", back_populates="convchanges", uselist=False
     )

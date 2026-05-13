@@ -277,17 +277,24 @@ async def get_messages(
             )
 
         with tracer.start_as_current_span("process_conv_db"):
-            all_results = []
+            all_results: list[MessageSchema] = []
             for result in reversed(results):
+                message = result.convo_message
+                if message is None:
+                    logger.warning(
+                        "conversation change %s has no associated message", result.id
+                    )
+                    continue
+
                 ms = MessageSchema(
                     id=result.id,
                     change_id=result.id,
-                    message_id=result.convo_message.id,
-                    content=result.convo_message.content,
-                    sender=result.convo_message.sender_id,
+                    message_id=message.id,
+                    content=message.content,
+                    sender=message.sender_id,
                     ts=result.ts,
                 )
-                all_results.append(ms.model_dump())
+                all_results.append(ms)
 
         return all_results
 

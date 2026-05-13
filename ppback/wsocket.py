@@ -57,14 +57,21 @@ class InMemSockets:
         return res
 
     async def broadcast_message_to_users(
-        self, from_user_id: int, convo_id, 
-        user_ids: List[int], msg_id:int, change_id: int, ts: float,
+        self,
+        from_user_id: int,
+        convo_id,
+        user_ids: List[int],
+        msg_id: int,
+        change_id: int,
+        ts: float,
     ):
         """Broadcast a message-created control event to conversation members."""
 
-        async def t(coros):
-            with tracer.start_as_current_span("bcast_gather"):
-                await asyncio.gather(*coros)
+        async def _safe_send(websocket: fastapi.WebSocket, payload: str) -> None:
+            try:
+                await asyncio.wait_for(websocket.send_text(payload), timeout=1)
+            except Exception:
+                logger.debug("websocket broadcast send failed", exc_info=True)
 
         with tracer.start_as_current_span("broadcast_message_to_users"):
             coros = []
@@ -78,6 +85,8 @@ class InMemSockets:
                 watermark=change_id,
             ).model_dump_json()
             for websocket in self.get_sockets_for_many(user_ids):
-                coros.append(websocket.send_text(message_json_payload))
+                coros.append(_safe_send(websocket, message_json_payload))
 
-            asyncio.create_task(t(coros))
+            if coros:
+                with tracer.start_as_current_span("bcast_gather"):
+                    await asyncio.gather(*coros, return_exceptions=True)

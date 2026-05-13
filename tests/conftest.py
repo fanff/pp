@@ -29,37 +29,39 @@ def client():
             await create_convo(db, "general", [user_alice, user_bob, user_charlie])
             await create_convo(db, "a_and_b", [user_alice, user_bob])
 
-    asyncio.run(setup_db())
-
-    client = TestClient(app)
-    cache_backend = InMemoryBackend()
-    FastAPICache.init(cache_backend, prefix="fastapi-cache")
-    alice_token = client.post("/token", data={"username": "alice", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
-
-    bob_token = client.post("/token", data={"username": "bob", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
-
-    charlie_token = client.post("/token", data={"username": "charlie", 
-                                "password": "testpassword",
-                                "grant_type":"password"},
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}
-                                ).json()["access_token"]
-
-
-
-    yield client,(alice_token,bob_token,charlie_token)
-    # Teardown: close the client after tests
-    client.close()
-
     async def teardown_db() -> None:
         async with dbengine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
 
-    asyncio.run(teardown_db())
+    asyncio.run(setup_db())
+
+    cache_backend = InMemoryBackend()
+    FastAPICache.reset()
+    FastAPICache.init(cache_backend, prefix="fastapi-cache")
+
+    client = TestClient(app)
+    try:
+        alice_token = client.post(
+            "/token",
+            data={"username": "alice", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
+
+        bob_token = client.post(
+            "/token",
+            data={"username": "bob", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
+
+        charlie_token = client.post(
+            "/token",
+            data={"username": "charlie", "password": "testpassword", "grant_type": "password"},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
+
+        yield client, (alice_token, bob_token, charlie_token)
+    finally:
+        client.close()
+        FastAPICache.reset()
+        cache_backend._store.clear()
+        asyncio.run(teardown_db())
