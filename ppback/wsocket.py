@@ -90,3 +90,9 @@ class InMemSockets:
             if coros:
                 with tracer.start_as_current_span("bcast_gather"):
                     await asyncio.gather(*coros, return_exceptions=True)
+
+
+inmemsockets = InMemSockets()
+
+
+inmemsockets = InMemSockets()

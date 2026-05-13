@@ -7,7 +7,8 @@ os.environ["PPBACK_AUTO_INIT_DB"] = "0"
 from ppback.db.ppdb_schemas import Base, UserInfo
 import pytest
 from fastapi.testclient import TestClient
-from ppback.main import SessionLocal, app, dbengine
+from ppback.config import SessionLocal, dbengine
+from ppback.main import app
 from ppback.db.dbfuncs import add_users, create_convo
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend

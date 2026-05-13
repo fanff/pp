@@ -2,7 +2,7 @@ import pytest
 
 from ppback.db.dbfuncs import get_conversation_list_for_user, hook_user
 from ppback.db.ppdb_schemas import UserInfo
-from ppback.main import SessionLocal
+from ppback.config import SessionLocal
 from ppback.ppschema import ConversationList
 
 
