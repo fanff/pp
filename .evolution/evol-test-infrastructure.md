@@ -418,4 +418,4 @@ assert the key exists in cache.
 - `pytest.ini` — current config
 - `pyproject.toml` — dev dependency `pytest-asyncio>=1.1.0`
 - `AGENTS.md` — Testing Details section (lines 34-43)
-- [`.evolution/evol-jwt-refresh.md`](evol-jwt-refresh.md) — prior evolution doc for style reference
+- [`.evolution/evol-jwt-auth.md`](evol-jwt-auth.md) — prior evolution doc for style reference
