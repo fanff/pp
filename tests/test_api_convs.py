@@ -3,7 +3,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_get_conversations(client):
-    client, (alice_token, bob_token, charlie_token) = client
+    client, (alice_token, bob_token, charlie_token, _diana_token) = client
     response = client.get("/conv/", headers={"Authorization": f"Bearer {alice_token}"})
 
     # Assert the response status code is 200 (OK)
@@ -20,7 +20,7 @@ async def test_get_conversations(client):
 
 @pytest.mark.asyncio
 async def test_create_conversation_keeps_creator_in_members(client):
-    client, (alice_token, _bob_token, _charlie_token) = client
+    client, (alice_token, _bob_token, _charlie_token, _diana_token) = client
 
     response = client.post(
         "/conv",

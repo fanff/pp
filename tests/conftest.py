@@ -33,6 +33,10 @@ def client():
             user_alice = (await add_users(db, [["alice", "testpassword"]]))[0]
             user_bob = (await add_users(db, [["bob", "testpassword"]]))[0]
             user_charlie = (await add_users(db, [["charlie", "testpassword"]]))[0]
+            user_diana = (await add_users(db, [["diana", "testpassword"]]))[0]
+            user_diana.is_admin = True
+            await db.commit()
+            await db.refresh(user_diana)
 
             await create_convo(
                 db, "general", [user_alice, user_bob, user_charlie],
@@ -99,7 +103,17 @@ def client():
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         ).json()["access_token"]
 
-        yield client, (alice_token, bob_token, charlie_token)
+        diana_token = client.post(
+            "/token",
+            data={
+                "username": "diana",
+                "password": "testpassword",
+                "grant_type": "password",
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        ).json()["access_token"]
+
+        yield client, (alice_token, bob_token, charlie_token, diana_token)
     finally:
         client.close()
         FastAPICache.reset()

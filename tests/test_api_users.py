@@ -3,7 +3,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_get_users(client):
-    client, (alice_token, bob_token, charlie_token) = client
+    client, (alice_token, bob_token, charlie_token, _diana_token) = client
     response = client.get("/users/", headers={"Authorization": f"Bearer {alice_token}"})
 
     assert response.status_code == 200
@@ -16,7 +16,7 @@ async def test_get_users(client):
 
 @pytest.mark.asyncio
 async def test_friend_request_flow(client):
-    client, (alice_token, bob_token, charlie_token) = client
+    client, (alice_token, bob_token, charlie_token, _diana_token) = client
 
     ic_resp = client.post(
         "/invite-codes",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -31,6 +31,7 @@ class UserInfo(Base):
     email: Mapped[str] = mapped_column(String)
     nickname: Mapped[str] = mapped_column(String)
     salted_password: Mapped[str] = mapped_column(String)
+    is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[float | None] = mapped_column(Float, default=time.time)
 
     def to_dict(self):

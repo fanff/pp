@@ -86,3 +86,28 @@ class FriendshipOut(BaseModel):
     name: str
     nickname: str
     since: float
+
+
+# ── Admin schemas ─────────────────────────────────────────────
+
+class AdminUserOut(BaseModel):
+    id: int
+    name: str
+    nickname: str
+    is_admin: bool
+    created_at: float | None = None
+
+
+class AdminConvOut(BaseModel):
+    id: int
+    label: str
+    member_count: int
+    created_at: float | None = None
+
+
+class AdminSetRoleRequest(BaseModel):
+    is_admin: bool
+
+
+class AdminSetConvMemberRoleRequest(BaseModel):
+    role: str

@@ -9,6 +9,8 @@ from ppback.db.ppdb_schemas import Base
 async def create_starting_point_db(session: AsyncSession):
     users = [("admin", "admin"), ("user", "user")]
     users = await add_users(session, users)
+    users[0].is_admin = True
+    await session.commit()
 
     await create_convo(session, "General", users, creator_id=users[0].id)
     await create_convo(session, "Random", users, creator_id=users[0].id)
