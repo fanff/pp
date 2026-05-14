@@ -22,7 +22,7 @@ For higher-level evolution guidance, see `SKILL.md`.
 - Quick boot validation: `timeout 5 uvicorn ppback.main:app --lifespan=on 2>&1 || true`
 - Manual DB init: `python -m ppback.init_db`
 - Run tests: `pytest`
-- Compose stack: `docker compose build && docker compose up -d`
+- Compose stack: `docker compose build && docker compose up -d` (requires Docker Compose v2.5+)
 
 ## Database & Env Quirks
 
@@ -30,6 +30,7 @@ For higher-level evolution guidance, see `SKILL.md`.
 - Default dev DB: `sqlite:///devdb.sqlite`.
 - Compose uses Postgres with a `migrate` service that runs `alembic upgrade head`.
 - Tracing enabled when `TRACING_ENDPOINT` is set; compose wires Jaeger on `http://jaeger:4318/v1/traces`.
+- CI: `.github/workflows/ci.yml` runs `pytest` against SQLite and Postgres on push/PR to `main`.
 
 ## Testing Details
 

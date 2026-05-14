@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ppuser
+      POSTGRES_PASSWORD: pgpass
+      POSTGRES_DB: ppdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ppuser -d ppdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    environment:
+      DB_SESSION_STR: postgresql+asyncpg://ppuser:pgpass@postgres:5432/ppdb
+      MASTER_SECRET_KEY: compose-secret-key
+      PPBACK_AUTO_INIT_DB: "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DB_SESSION_STR: postgresql+asyncpg://ppuser:pgpass@postgres:5432/ppdb
+      MASTER_SECRET_KEY: compose-secret-key
+      CORS_ORIGIN_STR: "*"
+      TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      PPBACK_AUTO_INIT_DB: "0"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+volumes:
+  pgdata:

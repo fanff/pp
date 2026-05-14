@@ -41,7 +41,13 @@ docker compose build
 docker compose up -d
 ```
 
-Services: backend (port 8000), Postgres (5432), Jaeger UI (16686).
+Services:
+- **backend** — FastAPI app (port 8000)
+- **postgres** — PostgreSQL 16 (port 5432)
+- **migrate** — Runs `alembic upgrade head` on startup, then exits
+- **jaeger** — OpenTelemetry tracing UI (port 16686, OTLP 4318)
+
+The compose stack uses Alembic for schema management (auto-init is disabled).
 
 ## Benchmarking
 
@@ -60,3 +66,12 @@ Default profile: 2m warmup, 8m steady, 2m spike (70% reads / 30% writes).
 | `CORS_ORIGIN_STR` | `*` | Comma-separated allowed origins |
 | `TRACING_ENDPOINT` | _(unset)_ | OTLP endpoint for Jaeger traces |
 | `PPBACK_AUTO_INIT_DB` | `1` | Enable/disable auto-init |
+
+## CI
+
+Tests run automatically via GitHub Actions on every push/PR to the `main` branch.
+The workflow runs `pytest` against both SQLite (default) and PostgreSQL (production parity).
+
+[![CI](https://github.com/YOUR_ORG/pp-network/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/pp-network/actions/workflows/ci.yml)
+
+Replace `YOUR_ORG` with your GitHub organization or username in the badge URL above.

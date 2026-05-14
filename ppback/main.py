@@ -14,7 +14,7 @@ from ppback.config import AUTO_INIT_DB, CORS_ORIGIN_STR, TRACING_ENDPOINT, Sessi
 from ppback.db.ppdb_schemas import Base, UserInfo
 from ppback.deps import decode_token  # noqa: F401
 from ppback.init_tracing import global_tracing_setup
-from ppback.routers import admin, messaging, users, ws
+from ppback.routers import admin, health, messaging, users, ws
 
 logger = logging.getLogger("ppback")
 
@@ -71,6 +71,7 @@ if CORS_ORIGIN_STR != "":
 FastAPIInstrumentor.instrument_app(app)
 
 app.include_router(admin.router)
+app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(messaging.router)
 app.include_router(ws.router)

@@ -1,6 +1,6 @@
 ---
 id: evol-docker-ci
-status: draft
+status: proposed
 created: 2026-05-14
 authors: [opencode]
 related: []
@@ -144,7 +144,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ppuser
-      POSTGRES_PASSWORD: pppass
+      POSTGRES_PASSWORD: pgpass
       POSTGRES_DB: ppdb
     ports:
       - "5432:5432"
@@ -162,7 +162,7 @@ services:
       dockerfile: Dockerfile
     command: ["uv", "run", "alembic", "upgrade", "head"]
     environment:
-      DB_SESSION_STR: postgresql+asyncpg://ppuser:ppass@postgres:5432/ppdb
+      DB_SESSION_STR: postgresql+asyncpg://ppuser:pgpass@postgres:5432/ppdb
       MASTER_SECRET_KEY: compose-secret-key
       PPBACK_AUTO_INIT_DB: "0"
     depends_on:
@@ -176,7 +176,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DB_SESSION_STR: postgresql+asyncpg://ppuser:ppass@postgres:5432/ppdb
+      DB_SESSION_STR: postgresql+asyncpg://ppuser:pgpass@postgres:5432/ppdb
       MASTER_SECRET_KEY: compose-secret-key
       CORS_ORIGIN_STR: "*"
       TRACING_ENDPOINT: http://jaeger:4318/v1/traces
@@ -252,7 +252,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: ppuser
-          POSTGRES_PASSWORD: pppass
+          POSTGRES_PASSWORD: pgpass
           POSTGRES_DB: ppdb_test
         options: >-
           --health-cmd pg_isready -U ppuser -d ppdb_test
@@ -284,7 +284,7 @@ jobs:
       - name: Run tests (Postgres)
         run: pytest
         env:
-          DB_SESSION_STR: postgresql+asyncpg://ppuser:ppass@localhost:5432/ppdb_test
+          DB_SESSION_STR: postgresql+asyncpg://ppuser:pgpass@localhost:5432/ppdb_test
           PPBACK_AUTO_INIT_DB: "0"
 ```
 
@@ -297,9 +297,10 @@ Key decisions:
 - Pins only the major Python version — tests run on `ubuntu-latest` with
   Python `3.12`.
 
-#### 5. New `GET /health` endpoint
+#### 5. New `GET /health` endpoint in `ppback/routers/health.py`
 
-Add to `ppback/routers/users.py` or a new `ppback/routers/health.py`:
+A dedicated minimal router keeps it self-contained and easy to skip in
+non-Docker environments:
 
 ```python
 from fastapi import APIRouter
@@ -311,28 +312,24 @@ async def health():
     return {"status": "ok"}
 ```
 
-Or simpler: add inline in `ppback/main.py` as a plain route. Since health
-checks are cross-cutting and should not require dependencies (DB, auth),
-putting it directly on the app or a minimal router is preferred.
-
 Register in `ppback/main.py`:
 
 ```python
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+from ppback.routers import admin, health, messaging, users, ws
+# ...
+app.include_router(health.router)   # <--- before or after other routers
 ```
 
 This avoids any dependency injection, DB calls, or auth. A health check that
 depends on the DB would fail during rollout and cause cascading restarts. If
 a deeper check is needed later, add a separate `/ready` or `/live` endpoint.
 
-#### 6. Remove/supersede `ppback_docker/Dockerfileback`
+#### 6. Remove `ppback_docker/Dockerfileback`
 
-The old file at `ppback_docker/Dockerfileback` is left in place but
-documented as superseded. It can be deleted after the new `Dockerfile` is
-confirmed working. The `ppback_docker/` directory can be kept for any
-future Docker-related assets.
+The old file at `ppback_docker/Dockerfileback` is kept until the evolution
+is verified successful (compose boots, CI passes). After confirmation, delete
+it. The `ppback_docker/` directory itself can be kept for any future
+Docker-related assets.
 
 ### Phases
 
@@ -366,7 +363,8 @@ future Docker-related assets.
 | `docker-compose.yml` (new) | 4 services: backend, postgres, migrate, jaeger |
 | `.dockerignore` (update) | Broader exclusion patterns |
 | `.github/workflows/ci.yml` (new) | pytest on push/PR with SQLite + Postgres |
-| `ppback/main.py` (add `/health`) | New `GET /health` route |
+| `ppback/main.py` (register `/health`) | Import and register `health.router` |
+| `ppback/routers/health.py` (new) | New `GET /health` route |
 | `README.md` (update) | Fix compose commands, add CI badge placeholder |
 | `AGENTS.md` (update) | Fix compose references, add CI notes |
 
@@ -411,7 +409,7 @@ should be covered by a minimal test:
 
 | Test file | Tests |
 |-----------|-------|
-| `tests/test_api_users.py` or new `tests/test_health.py` | `GET /health` returns `200 {"status": "ok"}` |
+| `tests/test_health.py` (new) | `GET /health` returns `200 {"status": "ok"}` |
 
 ### Docker compose verification (manual)
 
@@ -505,16 +503,17 @@ unchanged).
    developers can run `python -m ppback.init_db` manually or via a one-shot
    `seed` service later.
 4. **`.env` file**: Should `docker-compose.yml` reference a `.env` file for
-   secrets? The current approach hardcodes dev defaults (`ppuser`/`pppass`,
+   secrets? The current approach hardcodes dev defaults (`ppuser`/`pgpass`,
    `compose-secret-key`). This is acceptable for local development. A future
    evolution could add a `.env.example` and compose variable substitution.
 5. **Old `ppback_docker/Dockerfileback`**: Should it be deleted immediately or
    kept until the new `Dockerfile` is confirmed working? **Decision: keep
-   during phase 1, delete in phase 3** after documentation is updated.
+   until the evolution is verified successful (compose boots, CI passes),
+   then delete.**
 
 ## Decision record
 
-- **Status**: draft
+- **Status**: proposed
 - **Resolution**: —
 
 ## References

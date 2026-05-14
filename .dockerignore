@@ -5,8 +5,39 @@ node_modules
 .gitignore
 .ipynb_checkpoints
 
-
 devdb
 db_jaegger
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
 
+# Secrets
+.env
+.env.*
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Not needed at runtime
+tests/
+benchmarks/
+docs/
+.evolution/
+.opencode/
+
+# Docker files (not needed to send to daemon)
+Dockerfile
+docker-compose.yml
+
+# CI/CD
+.github/
+
+# Documentation
+README.md
+AGENTS.md
+
+# Self
+.dockerignore
