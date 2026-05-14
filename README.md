@@ -1,66 +1,62 @@
+# PP Network
 
-## PP Network
+PP Network is a backend conversational service built on FastAPI, featuring authenticated users, conversation threads, HTTP message history, real-time WebSocket events, and a friend/invite system.
 
-PP Network is a backend conversational service focused on authenticated users,
-conversation threads, HTTP history reads, and realtime websocket events.
+## Features
 
-Features:
-
-* user authentication with login/password (`/token`)
-* conversation management (`/conv`)
-* message posting and history (`/usermsg`, `/conv/{id}/messages`)
-* websocket updates (`/ws`)
+- User authentication with login/password (`/token`)
+- Conversation management (`POST/GET /conv`)
+- Message posting and history (`POST /usermsg`, `GET /conv/{id}/messages`)
+- Real-time WebSocket updates (`/ws`)
+- Invite codes and friend requests (`/invite-codes`, `/friend-requests`, `/friends`)
+- Admin API (`/admin/users`, `/admin/conv`)
+- Role-based access control per conversation (owner, admin, member, viewer)
+- FastAPI response caching (5 min TTL for user/conversation queries)
+- OpenTelemetry tracing (Jaeger) & structured logging
+- Locust benchmarking suite
 
 ## Development
 
-Install dependencies:
-
 ```bash
 uv sync
-```
-
-Run backend locally:
-
-```bash
 uvicorn ppback.main:app --reload
 ```
 
-The database is auto-initialized on startup (tables created + seeded with default users). No manual init step is needed.
+The database is auto-initialized on startup. Manual init:
+
+```bash
+python -m ppback.init_db
+```
 
 Default dev credentials: `admin:admin` and `user:user`.
 
-## Docker compose
+```bash
+pytest
+```
 
-Use `compose.yml` for backend + Postgres + Jaeger:
+## Docker Compose
 
 ```bash
 docker compose build
 docker compose up -d
-docker compose logs -f
 ```
 
-## Benchmarking with Locust
+Services: backend (port 8000), Postgres (5432), Jaeger UI (16686).
 
-Run a full benchmark campaign (fresh compose build + three-phase Locust load):
+## Benchmarking
 
 ```bash
 bash benchmarks/run_locust_compose.sh
 ```
 
-Default load profile:
+Default profile: 2m warmup, 8m steady, 2m spike (70% reads / 30% writes).
 
-- warmup: 2 minutes
-- steady: 8 minutes
-- spike: 2 minutes
-- traffic mix: 70% reads (`GET /users`, `GET /conv`) and 30% writes (`POST /usermsg`)
+## Environment
 
-Example overrides:
-
-```bash
-BENCH_HOST="http://localhost:8000" \
-LOCUST_STEADY_USERS=120 \
-LOCUST_SPIKE_USERS=200 \
-bash benchmarks/run_locust_compose.sh
-```
-
-Benchmark artifacts are written to `benchmarks/results/`.
+| Variable | Default | Description |
+|---|---|---|
+| `MASTER_SECRET_KEY` | `mydummykey` | JWT signing key |
+| `DB_SESSION_STR` | `sqlite:///devdb.sqlite` | SQLAlchemy DB URL |
+| `CORS_ORIGIN_STR` | `*` | Comma-separated allowed origins |
+| `TRACING_ENDPOINT` | _(unset)_ | OTLP endpoint for Jaeger traces |
+| `PPBACK_AUTO_INIT_DB` | `1` | Enable/disable auto-init |

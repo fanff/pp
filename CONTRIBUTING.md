@@ -1,60 +1,53 @@
 # Contributing
 
-Thanks for contributing to PP.
-
 ## Development setup
 
 ```bash
 uv sync
-uv run pytest
+pytest
 ```
 
-Run backend locally:
+## Running locally
 
 ```bash
 uvicorn ppback.main:app --reload
 ```
 
+## Quick-startup validation
+
+Verify imports and boot without a long-running server:
+
+```bash
+timeout 5 uvicorn ppback.main:app --lifespan=on 2>&1 || true
+```
+
 ## Branching policy
 
-- Do not commit directly to `master`/`main`.
-- Create a dedicated branch for each task or change.
-- Keep branches focused and short-lived.
-
-Suggested branch names:
-
-- `feat/<short-topic>`
-- `fix/<short-topic>`
-- `chore/<short-topic>`
-- `docs/<short-topic>`
+- Do not commit to `master`/`main` directly.
+- Create a dedicated branch per task: `feat/`, `fix/`, `chore/`, `docs/`.
 
 ## Commit message convention
 
-Use Conventional Commits:
+Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-```text
-<type>(optional-scope): <short summary>
+```
+<type>(<scope>): <short summary>
 ```
 
-Common types:
-
-- `feat`: new user-facing feature
-- `fix`: bug fix
-- `chore`: maintenance/refactor/tooling
-- `docs`: documentation-only changes
-- `test`: tests added or updated
-- `perf`: performance improvement
+Types: `feat`, `fix`, `chore`, `docs`, `test`, `perf`.
 
 Examples:
 
-- `feat(cache): add typed cache wrapper for hook_user`
-- `fix(ws): handle missing token payload in handshake`
-- `chore(compose): remove legacy frontend services`
-- `docs(readme): update backend-only local run steps`
+```
+feat(cache): add typed cache wrapper for hook_user
+fix(ws): handle missing token payload in handshake
+chore(compose): remove legacy frontend services
+docs(readme): update backend-only local run steps
+```
 
 ## Pull request checklist
 
-- Keep behavior changes small and explicit.
-- Update tests for changed behavior.
-- Run `uv run pytest` locally before opening PR.
+- Keep changes small and explicit.
+- Update tests for changed behaviour.
+- Run `pytest` locally before opening PR.
 - Update docs when contracts, commands, or workflows change.
