@@ -1,6 +1,6 @@
 ---
 id: evol-observability
-status: draft
+status: done
 created: 2026-05-14
 authors: [opencode]
 related: []
@@ -432,8 +432,8 @@ LOG_FORMAT=json uvicorn ppback.main:app --lifespan=on 2>&1 | head -5
 
 ## Decision record
 
-- **Status**: draft
-- **Resolution**: —
+- **Status**: done
+- **Resolution**: Implemented all 7 goals. Health endpoint with DB ping + uptime, Prometheus metrics middleware with path normalization, Request ID middleware via contextvars, URL conversion consolidated to `db_connect.py`, Alembic `env.py` uses async engine + `run_sync`, structured JSON logging via `LOG_FORMAT=json`, tracing setup moved to lifespan. Dockerfile CMD fixed. `prometheus-client>=0.21.0` added to dependencies. All changes additive — no breaking API or websocket contract changes.
 
 ## References
 

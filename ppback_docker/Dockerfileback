@@ -19,6 +19,6 @@ COPY alembic.ini /app/alembic.ini
 
 
 # CMD to run the application
-CMD ["uv", "run", "uvicorn", "ppback.thedummyAPI:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "ppback.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 EXPOSE 8000

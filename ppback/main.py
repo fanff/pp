@@ -1,4 +1,7 @@
 import logging
+import time
+import uuid
+import contextvars
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
@@ -9,19 +12,38 @@ from fastapi_cache.backends.inmemory import InMemoryBackend
 from opentelemetry import trace
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from sqlalchemy import select
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 from ppback.config import AUTO_INIT_DB, CORS_ORIGIN_STR, TRACING_ENDPOINT, SessionLocal, dbengine
 from ppback.db.ppdb_schemas import Base, UserInfo
 from ppback.deps import decode_token  # noqa: F401
 from ppback.init_tracing import global_tracing_setup
+from ppback.middleware.metrics import metrics_router, MetricsMiddleware
 from ppback.routers import admin, health, messaging, users, ws
+from ppback.routers.health import set_startup_time
 
 logger = logging.getLogger("ppback")
 
-if TRACING_ENDPOINT:
-    global_tracing_setup(TRACING_ENDPOINT)
-
 tracer = trace.get_tracer(__name__)
+
+_request_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="")
+
+
+def get_request_id() -> str:
+    return _request_id_ctx.get()
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        req_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        token = _request_id_ctx.set(req_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = req_id
+            return response
+        finally:
+            _request_id_ctx.reset(token)
 
 
 async def initialize_database_if_needed() -> None:
@@ -49,6 +71,11 @@ async def initialize_database_if_needed() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import time as _time
+    set_startup_time(_time.time())
+    if TRACING_ENDPOINT:
+        global_tracing_setup(TRACING_ENDPOINT)
+        FastAPIInstrumentor.instrument_app(app)
     await initialize_database_if_needed()
     cache_backend = InMemoryBackend()
     FastAPICache.init(cache_backend, prefix="fastapi-cache")
@@ -68,8 +95,10 @@ if CORS_ORIGIN_STR != "":
         allow_headers=["*"],
     )
 
-FastAPIInstrumentor.instrument_app(app)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(MetricsMiddleware)
 
+app.include_router(metrics_router)
 app.include_router(admin.router)
 app.include_router(health.router)
 app.include_router(users.router)
